@@ -9,6 +9,11 @@ from fastapi.responses import JSONResponse
 from app.errors import UserFacingError, ValidationError
 from app.repositories.base import ConstraintViolationError, NotFoundError, NotUniqueError
 from app.api.tasks import tasks_router
+from app.api.users import users_router
+from app.api.categories import categories_router
+from app.api.routines import routines_router
+from app.api.missions import missions_router
+from app.api.rewards import rewards_router
 logger = logging.getLogger(__name__)
 
 
@@ -44,6 +49,11 @@ class App(fastapi.FastAPI):
         )
 
         self.include_router(tasks_router)
+        self.include_router(users_router)
+        self.include_router(categories_router)
+        self.include_router(routines_router)
+        self.include_router(missions_router)
+        self.include_router(rewards_router)
 
         # # Handle 500s separately to play well with TestClient and allow re-raising in tests
         self.add_exception_handler(NotFoundError, handle_exceptions)

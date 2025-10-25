@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
-from typing import Annotated, TypedDict
+from typing import Annotated
+from typing_extensions import TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,6 +9,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.neuri.model import MissionType
 
 logger = logging.getLogger(__name__)
+
+
+# Schedule Schemas
+class ScheduleItem(TypedDict):
+    day: str
+    time: str
 
 
 # User Schemas
@@ -34,6 +41,13 @@ class UserRead(UserBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class UserProfileSetup(BaseModel):
+    """Schema for initial user profile setup during onboarding"""
+    name: str = Field(..., max_length=255)
+    pace: str = Field(..., max_length=50)  # "relaxed", "focused"
+    preferred_work_time: str = Field(..., max_length=50)  # "evening", "morning"
 
 
 # Category Schemas
@@ -80,6 +94,14 @@ class RoutineRead(RoutineBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class RoutineCreateWithSchedule(BaseModel):
+    """Schema for creating routine with schedule list"""
+    user_id: UUID
+    category_id: UUID | None = None
+    title: str = Field(..., max_length=255)
+    schedule: list[ScheduleItem] | None = None
 
 
 # Mission Schemas
@@ -164,6 +186,15 @@ class RewardRead(RewardBase):
     updated_at: datetime
 
 
+class DashboardStats(BaseModel):
+    """Dashboard statistics for user"""
+    total_points: int
+    current_streak: int
+    total_tasks_done: int
+    tree_stage: str
+    next_stage_points: int | None
+
+
 # Dashboard/Summary Schemas
 class UserDashboardRead(BaseModel):
     """User dashboard with summary data"""
@@ -186,16 +217,32 @@ class MissionStatsRead(BaseModel):
     by_category: dict[str, int]
 
 
-# Schedule Schemas
-class ScheduleItem(TypedDict):
-    day: str
-    time: str
-
-
 class RoutineScheduleRead(BaseModel):
     """Routine schedule with parsed schedule data"""
     routine: RoutineRead
     schedule_items: list[ScheduleItem]
+
+
+class RoutineTaskGeneration(BaseModel):
+    """Schema for generating tasks from a routine over N days"""
+    routine_id: UUID
+    days: int = Field(..., ge=1, le=365)  # Between 1 and 365 days
+
+
+class GeneratedTask(BaseModel):
+    """A task generated from a routine"""
+    title: str
+    scheduled_date: datetime
+    day_number: int
+    day_of_week: str
+
+
+class RoutineTaskGenerationResponse(BaseModel):
+    """Response for routine task generation"""
+    routine: RoutineRead
+    days_requested: int
+    generated_tasks: list[GeneratedTask]
+    total_tasks: int
 
 
 # Export Schemas
