@@ -135,12 +135,13 @@ class Mission(DBModel, UUIDMixin, TimestampMixin, kw_only=True):
         "Mission",
         back_populates="parent_project",
         remote_side="Mission.id",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        single_parent=True
     )
     parent_project: Mapped["Mission | None"] = relationship(
         "Mission",
         back_populates="sub_tasks",
-        remote_side="Mission.id"
+        foreign_keys=[parent_project_id]
     )
     
     # Relationship to parent Routine

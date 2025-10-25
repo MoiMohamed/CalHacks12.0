@@ -26,4 +26,5 @@ class CategoryRepository(BaseRepository[Category, CategoryCreate, CategoryUpdate
 
     async def get_by_name_and_user(self, session: AsyncSession, name: str, user_id: UUID) -> Category | None:
         stmt = select(Category).where(Category.name == name, Category.user_id == user_id)
-        return await self.get(session, stmt)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()

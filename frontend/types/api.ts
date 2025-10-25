@@ -19,25 +19,6 @@ export interface BaseEntity {
   updated_at: string;
 }
 
-// Task Types
-export interface Task extends BaseEntity {
-  title: string;
-  description: string;
-  completed: boolean;
-}
-
-export interface TaskCreate {
-  title: string;
-  description: string;
-  completed?: boolean;
-}
-
-export interface TaskUpdate {
-  title?: string;
-  description?: string;
-  completed?: boolean;
-}
-
 // Neuri System Types
 
 // Mission Types

@@ -3,8 +3,13 @@ import type { AxiosRequestConfig, AxiosResponse, Method } from "axios";
 import Constants from "expo-constants";
 
 // API Configuration
-// Use your laptop's IP for mobile development, localhost for web
+// Use environment variable or fallback to local development
 const getApiUrl = () => {
+  // Check for environment variable first
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    return process.env.EXPO_PUBLIC_API_BASE_URL;
+  }
+
   // Check if we're running on a mobile device (not web)
   if (Constants.platform?.ios || Constants.platform?.android) {
     return "http://10.112.17.36:8000"; // Your laptop's IP
@@ -33,7 +38,11 @@ interface AxiosRequestConfigPatch extends Omit<AxiosRequestConfig, "method"> {
 
 // Custom API Error class
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public data?: any) {
+  constructor(
+    message: string,
+    public status: number,
+    public data?: any
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -186,10 +195,6 @@ export function isAuthEnabled() {
 
 // Query key factory for TanStack Query
 export const queryKeys = {
-  // Tasks
-  tasks: ["tasks"] as const,
-  task: (id: string) => ["tasks", id] as const,
-
   // Users
   users: ["users"] as const,
   user: (id: string) => ["users", id] as const,

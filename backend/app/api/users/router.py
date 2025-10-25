@@ -54,6 +54,18 @@ async def update_user(
     return SuccessResponse(data=user)
 
 
+@router.post("/{user_id}/update-profile", response_model=SuccessResponse[UserRead])
+async def update_user_profile_post(
+    user_id: UUID,
+    user_data: UserUpdate,
+    session: AsyncSession = Depends(get_session),
+    user_service: UserService = Depends(),
+) -> SuccessResponse[UserRead]:
+    """Update user profile (POST version for VAPI compatibility)"""
+    user = await user_service.update_user(session, user_id, user_data)
+    return SuccessResponse(data=user)
+
+
 @router.post("/{user_id}/setup-profile", response_model=SuccessResponse[UserRead])
 async def setup_user_profile(
     user_id: UUID,
