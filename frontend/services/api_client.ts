@@ -33,11 +33,7 @@ interface AxiosRequestConfigPatch extends Omit<AxiosRequestConfig, "method"> {
 
 // Custom API Error class
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public data?: any
-  ) {
+  constructor(message: string, public status: number, public data?: any) {
     super(message);
     this.name = "ApiError";
   }
@@ -190,8 +186,57 @@ export function isAuthEnabled() {
 
 // Query key factory for TanStack Query
 export const queryKeys = {
+  // Tasks
   tasks: ["tasks"] as const,
   task: (id: string) => ["tasks", id] as const,
+
+  // Users
+  users: ["users"] as const,
+  user: (id: string) => ["users", id] as const,
+
+  // Categories
+  categories: ["categories"] as const,
+  category: (id: string) => ["categories", id] as const,
+  userCategories: (userId: string) => ["categories", "user", userId] as const,
+
+  // Routines
+  routines: ["routines"] as const,
+  routine: (id: string) => ["routines", id] as const,
+  userRoutines: (userId: string) => ["routines", "user", userId] as const,
+  categoryRoutines: (userId: string, categoryId: string) =>
+    ["routines", "user", userId, "category", categoryId] as const,
+  dayRoutines: (userId: string, day: string) =>
+    ["routines", "user", userId, "day", day] as const,
+
+  // Missions
+  missions: ["missions"] as const,
+  mission: (id: string) => ["missions", id] as const,
+  userMissions: (userId: string) => ["missions", "user", userId] as const,
+  todayMissions: (userId: string) =>
+    ["missions", "user", userId, "today"] as const,
+  overdueMissions: (userId: string) =>
+    ["missions", "user", userId, "overdue"] as const,
+  highPriorityMissions: (userId: string) =>
+    ["missions", "user", userId, "high-priority"] as const,
+  heavyMissions: (userId: string) =>
+    ["missions", "user", userId, "heavy"] as const,
+  categoryMissions: (userId: string, categoryId: string) =>
+    ["missions", "user", userId, "category", categoryId] as const,
+  typeMissions: (userId: string, type: string) =>
+    ["missions", "user", userId, "type", type] as const,
+  subTasks: (userId: string, parentId: string) =>
+    ["missions", "user", userId, "subtasks", parentId] as const,
+  routineMissions: (userId: string, routineId: string) =>
+    ["missions", "user", userId, "routine", routineId] as const,
+
+  // Rewards
+  rewards: ["rewards"] as const,
+  reward: (id: string) => ["rewards", id] as const,
+  userReward: (userId: string) => ["rewards", "user", userId] as const,
+  dashboardStats: (userId: string) =>
+    ["rewards", "user", userId, "dashboard"] as const,
+  treeProgress: (userId: string) =>
+    ["rewards", "user", userId, "tree-progress"] as const,
 };
 
 // TanStack Query default options

@@ -48,7 +48,7 @@ class App(fastapi.FastAPI):
             allow_headers=["*"],
         )
 
-        self.include_router(tasks_router)
+        # self.include_router(tasks_router) #TESTING
         self.include_router(users_router)
         self.include_router(categories_router)
         self.include_router(routines_router)

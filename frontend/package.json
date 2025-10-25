@@ -16,6 +16,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "@tanstack/react-query": "^5.90.5",
+    "@vapi-ai/react-native": "^0.3.0",
     "axios": "^1.12.2",
     "expo": "~54.0.20",
     "expo-constants": "~18.0.10",
