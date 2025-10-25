@@ -189,7 +189,10 @@ export function isAuthEnabled() {
 }
 
 // Query key factory for TanStack Query
-export const queryKeys = {};
+export const queryKeys = {
+  tasks: ["tasks"] as const,
+  task: (id: string) => ["tasks", id] as const,
+};
 
 // TanStack Query default options
 export const queryDefaults = {

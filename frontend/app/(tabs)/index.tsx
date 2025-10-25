@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   Alert,
+  FlatList,
 } from "react-native";
 
 import { HelloWave } from "@/components/hello-wave";
@@ -14,8 +15,21 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Link } from "expo-router";
 import { heathApi } from "@/services/api";
+import {
+  useTasks,
+  useCreateTask,
+  useUpdateTask,
+  useDeleteTask,
+} from "@/hooks/useTasks";
+import type { Task } from "@/types/api";
 
 export default function HomeScreen() {
+  // Tasks hooks
+  const { data: tasks, isLoading, error } = useTasks();
+  const createTaskMutation = useCreateTask();
+  const updateTaskMutation = useUpdateTask();
+  const deleteTaskMutation = useDeleteTask();
+
   const handleHealthCheck = async () => {
     try {
       const result = await heathApi.getHealth();
@@ -27,6 +41,71 @@ export default function HomeScreen() {
       );
     }
   };
+
+  const handleCreateTask = async () => {
+    try {
+      await createTaskMutation.mutateAsync({
+        title: "New Task",
+        description: "This is a test task created from the app",
+        completed: false,
+      });
+      Alert.alert("Success", "Task created successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to create task");
+    }
+  };
+
+  const handleToggleTask = async (task: Task) => {
+    try {
+      await updateTaskMutation.mutateAsync({
+        id: task.id,
+        data: { completed: !task.completed },
+      });
+    } catch (error) {
+      Alert.alert("Error", "Failed to update task");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTaskMutation.mutateAsync(taskId);
+      Alert.alert("Success", "Task deleted successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to delete task");
+    }
+  };
+
+  const renderTask = ({ item: task }: { item: Task }) => (
+    <View className="bg-gray-100 p-3 rounded-lg mb-2 flex-row items-center justify-between">
+      <View className="flex-1">
+        <Text
+          className={`font-semibold text-lg ${task.completed ? "line-through text-gray-500" : "text-gray-800"}`}
+        >
+          {task.title}
+        </Text>
+        <Text className="text-gray-600 text-sm">{task.description}</Text>
+        <Text className="text-xs text-gray-400 mt-1">
+          Created: {new Date(task.created_at).toLocaleDateString()}
+        </Text>
+      </View>
+      <View className="flex-row gap-2">
+        <TouchableOpacity
+          onPress={() => handleToggleTask(task)}
+          className={`px-3 py-1 rounded ${task.completed ? "bg-green-500" : "bg-yellow-500"}`}
+        >
+          <Text className="text-white text-xs font-semibold">
+            {task.completed ? "Done" : "Pending"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDeleteTask(task.id)}
+          className="bg-red-500 px-3 py-1 rounded"
+        >
+          <Text className="text-white text-xs font-semibold">Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   return (
     <ParallaxScrollView
@@ -153,6 +232,49 @@ export default function HomeScreen() {
         <ThemedText>
           Tap the button above to test the backend health check endpoint.
         </ThemedText>
+      </ThemedView>
+
+      {/* Tasks Test Section */}
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">📝 Tasks Management</ThemedText>
+
+        <TouchableOpacity
+          onPress={handleCreateTask}
+          className="bg-green-500 px-6 py-3 rounded-lg mb-4"
+          disabled={createTaskMutation.isPending}
+        >
+          <Text className="text-white font-semibold text-center text-lg">
+            {createTaskMutation.isPending ? "Creating..." : "Create New Task"}
+          </Text>
+        </TouchableOpacity>
+
+        {isLoading && (
+          <Text className="text-center text-gray-500 py-4">
+            Loading tasks...
+          </Text>
+        )}
+
+        {error && (
+          <Text className="text-center text-red-500 py-4">
+            Error loading tasks: {error.message}
+          </Text>
+        )}
+
+        {tasks && tasks.length > 0 ? (
+          <FlatList
+            data={tasks}
+            renderItem={renderTask}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            showsVerticalScrollIndicator={false}
+          />
+        ) : (
+          !isLoading && (
+            <Text className="text-center text-gray-500 py-4">
+              No tasks yet. Create your first task!
+            </Text>
+          )
+        )}
       </ThemedView>
     </ParallaxScrollView>
   );
