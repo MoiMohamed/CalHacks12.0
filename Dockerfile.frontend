@@ -1,0 +1,25 @@
+FROM node:lts-bookworm
+
+WORKDIR /app
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+# Copy package files first for better caching
+COPY myApp/package.json myApp/pnpm-lock.yaml ./
+
+# Install dependencies with cache mount
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+# Copy source code
+COPY myApp/ ./
+
+# Set environment variables
+ENV EXPO_PUBLIC_API_URL=http://localhost:8000
+
+# Expose port
+EXPOSE 8083
+
+# Start the Expo development server in web mode
+CMD ["npx", "expo", "start", "--web", "--port", "8083", "--host", "lan"]

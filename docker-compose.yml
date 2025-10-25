@@ -1,0 +1,51 @@
+name: calhacks-app
+
+networks:
+  webnet:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  db:
+    image: "postgres:16-alpine"
+    user: postgres
+    environment:
+      POSTGRES_DB: myapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-q", "-d", "myapp", "-U", "postgres"]
+      interval: 5s
+      timeout: 4s
+      start_period: 10s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - webnet
+
+  backend:
+    env_file:
+      - docker.env
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      target: dev
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/home/myapp/backend/app
+      - ./backend/alembic:/home/myapp/backend/alembic
+      - ./backend/alembic.ini:/home/myapp/backend/alembic.ini
+    environment:
+      POSTGRES_SERVER: db
+      ENVIRONMENT: development
+    networks:
+      - webnet
