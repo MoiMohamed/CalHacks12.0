@@ -1,5 +1,4 @@
 from .base import BaseRepository, AsyncSession, get_session
-from .task import TaskRepository
 from .user import UserRepository
 from .category import CategoryRepository
 from .routine import RoutineRepository
@@ -8,9 +7,8 @@ from .reward import RewardRepository
 
 __all__ = [
     "BaseRepository",
-    "AsyncSession", 
+    "AsyncSession",
     "get_session",
-    "TaskRepository",
     "UserRepository",
     "CategoryRepository",
     "RoutineRepository",

@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 
 from app.errors import UserFacingError, ValidationError
 from app.repositories.base import ConstraintViolationError, NotFoundError, NotUniqueError
-from app.api.tasks import tasks_router
 from app.api.users import users_router
 from app.api.categories import categories_router
 from app.api.routines import routines_router
