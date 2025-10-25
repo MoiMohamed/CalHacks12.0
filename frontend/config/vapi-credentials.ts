@@ -8,7 +8,18 @@ export const VAPI_CREDENTIALS = {
     process.env.VAPI_PUBLIC_KEY ||
     "",
 
-  // Your VAPI Assistant ID (from the assistant you created)
+  // Your VAPI Assistant IDs
+  ONBOARDING_ASSISTANT_ID:
+    process.env.EXPO_PUBLIC_VAPI_ONBOARDING_ASSISTANT_ID ||
+    process.env.VAPI_ONBOARDING_ASSISTANT_ID ||
+    "",
+
+  MAIN_ASSISTANT_ID:
+    process.env.EXPO_PUBLIC_VAPI_MAIN_ASSISTANT_ID ||
+    process.env.VAPI_MAIN_ASSISTANT_ID ||
+    "",
+
+  // Legacy support for single assistant ID
   ASSISTANT_ID:
     process.env.EXPO_PUBLIC_VAPI_ASSISTANT_ID ||
     process.env.VAPI_ASSISTANT_ID ||
@@ -22,9 +33,9 @@ if (!VAPI_CREDENTIALS.PUBLIC_KEY) {
   );
 }
 
-if (!VAPI_CREDENTIALS.ASSISTANT_ID) {
+if (!VAPI_CREDENTIALS.MAIN_ASSISTANT_ID && !VAPI_CREDENTIALS.ASSISTANT_ID) {
   throw new Error(
-    "VAPI_ASSISTANT_ID is required. Please set EXPO_PUBLIC_VAPI_ASSISTANT_ID in your .env.local file"
+    "VAPI_MAIN_ASSISTANT_ID is required. Please set EXPO_PUBLIC_VAPI_MAIN_ASSISTANT_ID in your .env.local file"
   );
 }
 

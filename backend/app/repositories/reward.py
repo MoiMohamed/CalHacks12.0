@@ -76,40 +76,4 @@ class RewardRepository(BaseRepository[Reward, RewardCreate, RewardUpdate]):
             points = 1  # Default
         
         reward.points += points
-        await self._update_tree_stage(reward)
         return reward
-
-    async def _update_tree_stage(self, reward: Reward) -> None:
-        """Update tree stage based on points"""
-        if reward.points <= 5:
-            reward.tree_stage = "seed"
-        elif reward.points <= 15:
-            reward.tree_stage = "sprout"
-        elif reward.points <= 30:
-            reward.tree_stage = "sapling"
-        elif reward.points <= 50:
-            reward.tree_stage = "small-tree"
-        else:
-            reward.tree_stage = "full-tree"
-
-    async def get_tree_progress(self, session: AsyncSession, user_id: UUID) -> dict:
-        """Get tree progress information"""
-        reward = await self.get_by_user(session, user_id)
-        if not reward:
-            return {"stage": "seed", "points": 0, "next_stage_points": 6}
-        
-        next_stage_points = {
-            "seed": 6,
-            "sprout": 16,
-            "sapling": 31,
-            "small-tree": 51,
-            "full-tree": None
-        }
-        
-        return {
-            "stage": reward.tree_stage,
-            "points": reward.points,
-            "next_stage_points": next_stage_points.get(reward.tree_stage),
-            "total_tasks_done": reward.total_tasks_done,
-            "streak": reward.streak
-        }

@@ -113,7 +113,8 @@ class MissionBase(BaseModel):
     parent_project_id: UUID | None = None
     parent_routine_id: UUID | None = None
     body: str | None = None
-    deadline: datetime | None = None
+    true_deadline: datetime | None = None
+    personal_deadline: datetime | None = None
     recurrence_rule: str | None = Field(None, max_length=100)
     is_complete: bool = False
     heaviness: int | None = Field(None, ge=1, le=10)
@@ -130,7 +131,8 @@ class MissionUpdate(BaseModel):
     parent_project_id: UUID | None = None
     parent_routine_id: UUID | None = None
     body: str | None = None
-    deadline: datetime | None = None
+    true_deadline: datetime | None = None
+    personal_deadline: datetime | None = None
     recurrence_rule: str | None = Field(None, max_length=100)
     is_complete: bool | None = None
     heaviness: int | None = Field(None, ge=1, le=10)
@@ -159,10 +161,7 @@ class RewardBase(BaseModel):
     points: int = 0
     streak: int = 0
     total_tasks_done: int = 0
-    tree_stage: str = Field(default="seed", max_length=50)
-    total_branches: int = 0
-    total_leaves: int = 0
-    milestones_unlocked: list[str] | None = None
+    milestones_unlocked: str | None = None
 
 
 class RewardCreate(RewardBase): ...
@@ -172,10 +171,7 @@ class RewardUpdate(BaseModel):
     points: int | None = None
     streak: int | None = None
     total_tasks_done: int | None = None
-    tree_stage: str | None = Field(None, max_length=50)
-    total_branches: int | None = None
-    total_leaves: int | None = None
-    milestones_unlocked: list[str] | None = None
+    milestones_unlocked: str | None = None
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 
@@ -191,8 +187,7 @@ class DashboardStats(BaseModel):
     total_points: int
     current_streak: int
     total_tasks_done: int
-    tree_stage: str
-    next_stage_points: int | None
+    milestones_unlocked: str | None
 
 
 # Dashboard/Summary Schemas

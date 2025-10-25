@@ -451,14 +451,6 @@ export const rewardsApi = {
     return response.data.data;
   },
 
-  // Get tree progress information
-  getTreeProgress: async (userId: string): Promise<any> => {
-    const response = await apiClient.get<ApiResponse<any>>(
-      `/rewards/user/${userId}/tree-progress`
-    );
-    return response.data.data;
-  },
-
   // Get dashboard statistics
   getDashboardStats: async (userId: string): Promise<DashboardStats> => {
     const response = await apiClient.get<ApiResponse<DashboardStats>>(

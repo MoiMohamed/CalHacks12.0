@@ -32,7 +32,8 @@ export interface Mission extends BaseEntity {
   parent_project_id?: string;
   parent_routine_id?: string;
   body?: string;
-  deadline?: string;
+  true_deadline?: string;
+  personal_deadline?: string;
   recurrence_rule?: string;
   is_complete: boolean;
   heaviness?: number;
@@ -47,7 +48,8 @@ export interface MissionCreate {
   parent_project_id?: string;
   parent_routine_id?: string;
   body?: string;
-  deadline?: string;
+  true_deadline?: string;
+  personal_deadline?: string;
   recurrence_rule?: string;
   is_complete?: boolean;
   heaviness?: number;
@@ -61,7 +63,8 @@ export interface MissionUpdate {
   parent_project_id?: string;
   parent_routine_id?: string;
   body?: string;
-  deadline?: string;
+  true_deadline?: string;
+  personal_deadline?: string;
   recurrence_rule?: string;
   is_complete?: boolean;
   heaviness?: number;
@@ -163,10 +166,7 @@ export interface Reward extends BaseEntity {
   points: number;
   streak: number;
   total_tasks_done: number;
-  tree_stage: string;
-  total_branches: number;
-  total_leaves: number;
-  milestones_unlocked?: string[];
+  milestones_unlocked?: string;
 }
 
 export interface RewardCreate {
@@ -174,28 +174,21 @@ export interface RewardCreate {
   points?: number;
   streak?: number;
   total_tasks_done?: number;
-  tree_stage?: string;
-  total_branches?: number;
-  total_leaves?: number;
-  milestones_unlocked?: string[];
+  milestones_unlocked?: string;
 }
 
 export interface RewardUpdate {
   points?: number;
   streak?: number;
   total_tasks_done?: number;
-  tree_stage?: string;
-  total_branches?: number;
-  total_leaves?: number;
-  milestones_unlocked?: string[];
+  milestones_unlocked?: string;
 }
 
 export interface DashboardStats {
   total_points: number;
   current_streak: number;
   total_tasks_done: number;
-  tree_stage: string;
-  next_stage_points?: number;
+  milestones_unlocked?: string;
 }
 
 // Routine Task Generation Types

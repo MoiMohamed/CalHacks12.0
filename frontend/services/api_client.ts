@@ -240,8 +240,6 @@ export const queryKeys = {
   userReward: (userId: string) => ["rewards", "user", userId] as const,
   dashboardStats: (userId: string) =>
     ["rewards", "user", userId, "dashboard"] as const,
-  treeProgress: (userId: string) =>
-    ["rewards", "user", userId, "tree-progress"] as const,
 };
 
 // TanStack Query default options

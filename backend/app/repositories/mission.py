@@ -53,23 +53,23 @@ class MissionRepository(BaseRepository[Mission, MissionCreate, MissionUpdate]):
         return await self.list(session, stmt)
 
     async def get_today_missions(self, session: AsyncSession, user_id: UUID) -> Sequence[Mission]:
-        """Get missions due today"""
+        """Get missions due today (based on personal_deadline)"""
         from datetime import datetime, date
         today = date.today()
         stmt = select(Mission).where(
             Mission.user_id == user_id,
-            Mission.deadline.isnot(None),
-            func.date(Mission.deadline) == today
+            Mission.personal_deadline.isnot(None),
+            func.date(Mission.personal_deadline) == today
         )
         return await self.list(session, stmt)
 
     async def get_overdue_missions(self, session: AsyncSession, user_id: UUID) -> Sequence[Mission]:
-        """Get overdue missions"""
+        """Get overdue missions (based on true_deadline)"""
         from datetime import datetime
         now = datetime.now()
         stmt = select(Mission).where(
             Mission.user_id == user_id,
-            Mission.deadline < now,
+            Mission.true_deadline < now,
             Mission.is_complete == False
         )
         return await self.list(session, stmt)

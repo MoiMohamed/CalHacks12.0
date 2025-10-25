@@ -69,20 +69,13 @@ class RewardService:
         reward = await self.reward_repo.add_points_for_mission(session, user_id, mission_type, is_subtask)
         return RewardRead.model_validate(reward)
 
-    async def get_tree_progress(self, session: AsyncSession, user_id: UUID) -> dict:
-        """Get tree progress for ADHD gamification"""
-        return await self.reward_repo.get_tree_progress(session, user_id)
-
     async def get_dashboard_stats(self, session: AsyncSession, user_id: UUID) -> dict:
         """Get dashboard statistics for ADHD user"""
         reward = await self.get_user_reward(session, user_id)
-        tree_progress = await self.get_tree_progress(session, user_id)
         
         return {
             "points": reward.points,
             "streak": reward.streak,
             "total_tasks_done": reward.total_tasks_done,
-            "tree_stage": reward.tree_stage,
-            "tree_progress": tree_progress,
-            "milestones_unlocked": reward.milestones_unlocked or []
+            "milestones_unlocked": reward.milestones_unlocked or ""
         }

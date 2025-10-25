@@ -115,7 +115,10 @@ class Mission(DBModel, UUIDMixin, TimestampMixin, kw_only=True):
     
     # Fields for different mission types
     body: Mapped[str | None] = mapped_column(Text, nullable=True)  # For 'note' type
-    deadline: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)  # For 'task' and 'reminder'
+    
+    # Dual deadline system
+    true_deadline: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)  # External/real-world due date
+    personal_deadline: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)  # Motivational/self-imposed checkpoint
     
     # Recurrence
     recurrence_rule: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g., "DAILY", "WEEKLY"
@@ -164,15 +167,8 @@ class Reward(DBModel, UUIDMixin, TimestampMixin, kw_only=True):
     streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_tasks_done: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     
-    # Tree Visuals
-    tree_stage: Mapped[str] = mapped_column(String(50), default="seed", nullable=False)
-    total_branches: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_leaves: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-
-    # Milestones & Age
-    milestones_unlocked: Mapped[list[str] | None] = mapped_column(
-        JSONB, nullable=True, server_default="null"
-    )
+    # Milestones
+    milestones_unlocked: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     # Relationships
     user: Mapped["User"] = relationship(back_populates="reward")

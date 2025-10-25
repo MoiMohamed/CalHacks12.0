@@ -22,14 +22,6 @@ export const useDashboardStats = (userId: string) => {
   });
 };
 
-export const useTreeProgress = (userId: string) => {
-  return useQuery<any, Error>({
-    queryKey: queryKeys.treeProgress(userId),
-    queryFn: () => rewardsApi.getTreeProgress(userId),
-    enabled: !!userId,
-  });
-};
-
 export const useAddMissionPoints = () => {
   const queryClient = useQueryClient();
   return useMutation<
@@ -46,9 +38,6 @@ export const useAddMissionPoints = () => {
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.dashboardStats(data.user_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.treeProgress(data.user_id),
       });
     },
     onError: (error) => {
