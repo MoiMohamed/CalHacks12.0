@@ -61,7 +61,7 @@ export const onboardingAssistant = {
         required: ["category_name"],
       },
       server: {
-        url: "https://shawn-packthreaded-jenae.ngrok-free.dev/categories/get-or-create-body",
+        url: "https://overview-pas-product-noticed.trycloudflare.com/categories/get-or-create-body",
         method: "POST",
         // Send data in body for VAPI compatibility
         body: {
@@ -91,7 +91,7 @@ export const onboardingAssistant = {
         },
       },
       server: {
-        url: "https://shawn-packthreaded-jenae.ngrok-free.dev/users/{vapi.user.id}/update-profile",
+        url: "https://overview-pas-product-noticed.trycloudflare.com/users/{vapi.user.id}/update-profile",
         method: "POST",
         // Send profile data in body
         body: {

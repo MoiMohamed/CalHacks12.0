@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,13 @@ import {
   Image,
   PanResponder,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import Svg, { Path, Circle } from "react-native-svg";
+import { useCompleteMission } from "@/hooks/useMissions";
+import { useComprehensiveContext } from "@/hooks/useComprehensiveContext";
+import type { Mission, Routine } from "@/types/api";
+import { apiURL } from "@/services/api_client";
 
 // Status bar icons - you'll need to replace these with your actual image URLs
 const imgRectangle =
@@ -79,139 +84,362 @@ interface TaskSection {
   tasks: Task[];
 }
 
+const HARDCODED_USER_ID = "ac22a45c-fb5b-4027-9e41-36d6b9abaebb";
+
+// Helper function to get emoji based on mission type or title
+const getEmojiForMission = (mission: Mission): string => {
+  if (mission.type === "task") {
+    const title = mission.title.toLowerCase();
+    if (title.includes("bill") || title.includes("pay")) return "💰";
+    if (
+      title.includes("code") ||
+      title.includes("cs") ||
+      title.includes("program")
+    )
+      return "💻";
+    if (
+      title.includes("write") ||
+      title.includes("essay") ||
+      title.includes("thesis")
+    )
+      return "✍️";
+    if (title.includes("read") || title.includes("book")) return "📘";
+    if (title.includes("study") || title.includes("exam")) return "📚";
+    if (
+      title.includes("exercise") ||
+      title.includes("gym") ||
+      title.includes("workout")
+    )
+      return "💪";
+    if (
+      title.includes("cook") ||
+      title.includes("food") ||
+      title.includes("meal")
+    )
+      return "🍳";
+    if (title.includes("clean")) return "🧹";
+    if (title.includes("shop")) return "🛒";
+    if (title.includes("call") || title.includes("phone")) return "📞";
+    if (title.includes("email")) return "📧";
+    if (title.includes("meeting")) return "👥";
+    return "📋";
+  }
+  if (mission.type === "project") return "🎯";
+  if (mission.type === "reminder") return "⏰";
+  if (mission.type === "note") return "📝";
+  return "📋";
+};
+
+const getEmojiForRoutine = (routine: Routine): string => {
+  const title = routine.title.toLowerCase();
+  if (title.includes("meditat")) return "🧘";
+  if (
+    title.includes("gym") ||
+    title.includes("workout") ||
+    title.includes("exercise")
+  )
+    return "💪";
+  if (
+    title.includes("breakfast") ||
+    title.includes("lunch") ||
+    title.includes("dinner")
+  )
+    return "🍗";
+  if (title.includes("read")) return "📘";
+  if (title.includes("sleep") || title.includes("bed")) return "😴";
+  if (title.includes("water") || title.includes("hydrat")) return "💧";
+  if (title.includes("walk")) return "🚶";
+  if (title.includes("study")) return "📚";
+  if (title.includes("work")) return "💼";
+  return "⚡";
+};
+
+// Color palettes for tasks
+const highPriorityColors = [
+  "#F5D0F9",
+  "#FDEDE0",
+  "#EBE9FC",
+  "#FFE5E5",
+  "#FFF4E5",
+];
+const routineColors = ["#F3FDD3", "#F9D0D1", "#D3FDF2", "#D3E4FD", "#FFE5F0"];
+const otherColors = ["#FDE0D3", "#DED0F9", "#E5F4FF", "#FFF0E5", "#F0E5FF"];
+
 export default function ScheduleComponent() {
+  // Hardcoded user ID
+  const userId = HARDCODED_USER_ID;
+
+  // Log API URL on mount
+  useEffect(() => {
+    console.log("=== API Configuration ===");
+    console.log("API URL:", apiURL);
+    console.log("User ID:", userId);
+  }, []);
+
+  // Fetch comprehensive context (all missions, routines, etc.)
+  const {
+    data: context,
+    isLoading,
+    error,
+    refetch,
+  } = useComprehensiveContext(userId);
+
+  const { mutateAsync: completeMission } = useCompleteMission();
+
+  // Extract data from context
+  const missions = context?.all_missions || [];
+  const routines = context?.routines || [];
+  const reward = context?.reward;
+
+  // Debug logging
+  useEffect(() => {
+    console.log("=== ScheduleComponent Debug ===");
+    console.log("User ID:", userId);
+    console.log("Loading:", isLoading);
+    console.log("Error:", error);
+    if (error) {
+      console.error("Full Error Object:", error);
+      console.error("Error Message:", error.message);
+      console.error("Error Stack:", error.stack);
+    }
+    console.log("Context:", context);
+    console.log("Missions Count:", missions.length);
+    if (missions.length > 0) {
+      console.log("Sample Mission:", missions[0]);
+    }
+    console.log("Routines Count:", routines.length);
+    if (routines.length > 0) {
+      console.log("Sample Routine:", routines[0]);
+    }
+    if (reward) {
+      console.log("Reward:", reward);
+    }
+  }, [isLoading, error, context, missions, routines, reward]);
+
   // Calendar state
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 9, 11)); // October 11, 2025
-  const [selectedDate, setSelectedDate] = useState(11);
-  const [viewIndex, setViewIndex] = useState(0); // 0 = first half, 1 = second half, 2 = third chunk if needed
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date().getDate());
+  const [viewIndex, setViewIndex] = useState(0);
 
   // Draggable bottom sheet state
   const bottomSheetY = useRef(new Animated.Value(380)).current;
-  const MIN_Y = 130; // Fully expanded (covers calendar)
-  const MAX_Y = 360; // Default position (folded with space)
+  const MIN_Y = 130;
+  const MAX_Y = 360;
 
-  // Task sections state
-  const [taskSections, setTaskSections] = useState<TaskSection[]>([
-    {
-      id: "high-priority",
-      emoji: "🔥",
-      title: "HIGH PRIORITY",
-      count: 3,
-      backgroundColor: "#FCECED",
-      isExpanded: true,
-      tasks: [
-        {
-          id: "hp-1",
-          emoji: "💰",
-          title: "Pay my bills",
-          completed: false,
-          backgroundColor: "#F5D0F9",
+  // Section expansion state
+  const [expandedSections, setExpandedSections] = useState<{
+    [key: string]: boolean;
+  }>({
+    "high-priority": true,
+    routine: true,
+    others: true,
+  });
+
+  // Note: Refetching is handled automatically by the useComprehensiveContext hook (every 3 seconds)
+
+  // Helper function to check if a mission matches the selected date
+  const isMissionForDate = (mission: Mission, date: Date): boolean => {
+    if (!mission.personal_deadline && !mission.true_deadline) {
+      return false; // No deadline, don't show on any specific date
+    }
+
+    const deadline = mission.personal_deadline || mission.true_deadline;
+    if (!deadline) return false;
+
+    const deadlineDate = new Date(deadline);
+
+    return (
+      deadlineDate.getDate() === date.getDate() &&
+      deadlineDate.getMonth() === date.getMonth() &&
+      deadlineDate.getFullYear() === date.getFullYear()
+    );
+  };
+
+  // Helper function to check if a routine is scheduled for a specific day
+  const isRoutineForDate = (routine: Routine, date: Date): boolean => {
+    if (!routine.schedule) return false;
+
+    try {
+      const scheduleData =
+        typeof routine.schedule === "string"
+          ? JSON.parse(routine.schedule)
+          : routine.schedule;
+
+      if (!Array.isArray(scheduleData)) return false;
+
+      const dayNames = [
+        "SUNDAY",
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+      ];
+      const dayName = dayNames[date.getDay()];
+
+      return scheduleData.some(
+        (item: any) =>
+          item.day?.toUpperCase().includes(dayName.substring(0, 3)) ||
+          item.day?.toUpperCase() === dayName
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  // Helper to extract time from routine schedule
+  const getRoutineTime = (
+    routine: Routine
+  ): { start: string; end?: string } | null => {
+    if (!routine.schedule) return null;
+
+    try {
+      const scheduleData =
+        typeof routine.schedule === "string"
+          ? JSON.parse(routine.schedule)
+          : routine.schedule;
+
+      if (!Array.isArray(scheduleData) || scheduleData.length === 0)
+        return null;
+
+      const timeStr = scheduleData[0].time;
+      if (!timeStr) return null;
+
+      return { start: timeStr };
+    } catch {
+      return null;
+    }
+  };
+
+  // Compute task sections dynamically based on selected date
+  const taskSections = useMemo(() => {
+    const selectedDateObj = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      selectedDate
+    );
+
+    console.log("=== Task Sections Computation ===");
+    console.log("Selected Date:", selectedDateObj.toISOString());
+    console.log("Total Missions:", missions.length);
+    console.log("Total Routines:", routines.length);
+
+    // Filter missions for selected date
+    const missionsForDate = (missions || []).filter(
+      (m) => isMissionForDate(m, selectedDateObj) && !m.is_complete
+    );
+
+    console.log("Missions for selected date:", missionsForDate.length);
+    console.log(
+      "Missions for selected date detail:",
+      missionsForDate.map((m) => ({
+        id: m.id,
+        title: m.title,
+        priority: m.priority,
+        personal_deadline: m.personal_deadline,
+        true_deadline: m.true_deadline,
+        is_complete: m.is_complete,
+      }))
+    );
+
+    // Categorize missions
+    const highPriorityMissions = missionsForDate.filter(
+      (m) => (m.priority || 0) > 7
+    );
+    const otherMissions = missionsForDate.filter((m) => (m.priority || 0) <= 7);
+
+    console.log("High Priority Missions:", highPriorityMissions.length);
+    console.log("Other Missions:", otherMissions.length);
+
+    // Filter routines for selected date
+    const routinesForDate = (routines || []).filter((r) =>
+      isRoutineForDate(r, selectedDateObj)
+    );
+
+    console.log("Routines for selected date:", routinesForDate.length);
+    console.log(
+      "Routines for selected date detail:",
+      routinesForDate.map((r) => ({
+        id: r.id,
+        title: r.title,
+        schedule: r.schedule,
+      }))
+    );
+
+    // Build task sections
+    const sections: TaskSection[] = [];
+
+    // High Priority Section
+    if (highPriorityMissions.length > 0) {
+      sections.push({
+        id: "high-priority",
+        emoji: "🔥",
+        title: "HIGH PRIORITY",
+        count: highPriorityMissions.length,
+        backgroundColor: "#FCECED",
+        isExpanded: expandedSections["high-priority"] ?? true,
+        tasks: highPriorityMissions.map((mission, idx) => ({
+          id: mission.id,
+          emoji: getEmojiForMission(mission),
+          title: mission.title,
+          completed: mission.is_complete,
+          backgroundColor: highPriorityColors[idx % highPriorityColors.length],
           circleImage: imgEllipse6,
           checkboxImage: imgEllipse7,
-        },
-        {
-          id: "hp-2",
-          emoji: "💻",
-          title: "Complete my CS110 assignmnet",
-          completed: false,
-          backgroundColor: "#FDEDE0",
-          circleImage: imgEllipse5,
-          checkboxImage: imgEllipse7,
-        },
-        {
-          id: "hp-3",
-          emoji: "✍️",
-          title: "Write my B111 thesis",
-          completed: false,
-          backgroundColor: "#EBE9FC",
-          circleImage: imgEllipse8,
-          checkboxImage: imgEllipse7,
-        },
-      ],
-    },
-    {
-      id: "routine",
-      emoji: "🌳",
-      title: "ROUTINE",
-      count: 5,
-      backgroundColor: "#F3FDD3",
-      isExpanded: true,
-      tasks: [
-        {
-          id: "rt-1",
-          emoji: "🧘",
-          title: "Meditation",
-          completed: false,
-          timeStart: "11 AM",
-          timeEnd: "12 PM",
-          backgroundColor: "#F3FDD3",
-          circleImage: imgEllipse9,
-          checkboxImage: imgEllipse7,
-        },
-        {
-          id: "rt-2",
-          emoji: "💪",
-          title: "Gym",
-          completed: false,
-          timeStart: "2 PM",
-          timeEnd: "3 PM",
-          backgroundColor: "#F9D0D1",
-          circleImage: imgEllipse10,
-          checkboxImage: imgEllipse7,
-        },
-        {
-          id: "rt-3",
-          emoji: "🍗",
-          title: "Lunch",
-          completed: false,
-          timeStart: "3 PM",
-          timeEnd: "3:30 PM",
-          backgroundColor: "#D3FDF2",
-          circleImage: imgEllipse11,
-          checkboxImage: imgEllipse7,
-        },
-        {
-          id: "rt-4",
-          emoji: "📘",
-          title: "Reading",
-          completed: false,
-          timeStart: "9 PM",
-          timeEnd: "9:45 PM",
-          backgroundColor: "#D3E4FD",
-          circleImage: imgEllipse12,
-          checkboxImage: imgEllipse7,
-        },
-      ],
-    },
-    {
-      id: "others",
-      emoji: "🤌",
-      title: "OTHERS",
-      count: 2,
-      backgroundColor: "#D3EEFD",
-      isExpanded: true,
-      tasks: [
-        {
-          id: "ot-1",
-          emoji: "🐕‍🦺",
-          title: "Walk the dog",
-          completed: false,
-          backgroundColor: "#FDE0D3",
+        })),
+      });
+    }
+
+    // Routine Section
+    if (routinesForDate.length > 0) {
+      sections.push({
+        id: "routine",
+        emoji: "🌳",
+        title: "ROUTINE",
+        count: routinesForDate.length,
+        backgroundColor: "#F3FDD3",
+        isExpanded: expandedSections["routine"] ?? true,
+        tasks: routinesForDate.map((routine, idx) => {
+          const time = getRoutineTime(routine);
+          return {
+            id: routine.id,
+            emoji: getEmojiForRoutine(routine),
+            title: routine.title,
+            completed: false,
+            timeStart: time?.start,
+            timeEnd: time?.end,
+            backgroundColor: routineColors[idx % routineColors.length],
+            circleImage: imgEllipse9,
+            checkboxImage: imgEllipse7,
+          };
+        }),
+      });
+    }
+
+    // Others Section
+    if (otherMissions.length > 0) {
+      sections.push({
+        id: "others",
+        emoji: "🤌",
+        title: "OTHERS",
+        count: otherMissions.length,
+        backgroundColor: "#D3EEFD",
+        isExpanded: expandedSections["others"] ?? true,
+        tasks: otherMissions.map((mission, idx) => ({
+          id: mission.id,
+          emoji: getEmojiForMission(mission),
+          title: mission.title,
+          completed: mission.is_complete,
+          backgroundColor: otherColors[idx % otherColors.length],
           circleImage: imgEllipse13,
           checkboxImage: imgEllipse14,
-        },
-        {
-          id: "ot-2",
-          emoji: "📺",
-          title: "Watch the new episode of AOT",
-          completed: false,
-          backgroundColor: "#DED0F9",
-          circleImage: imgEllipse15,
-          checkboxImage: imgEllipse14,
-        },
-      ],
-    },
-  ]);
+        })),
+      });
+    }
+
+    return sections;
+  }, [missions, routines, selectedDate, currentDate, expandedSections]);
 
   const monthNames = [
     "JANUARY",
@@ -325,30 +553,24 @@ export default function ScheduleComponent() {
   };
 
   const toggleSection = (sectionId: string) => {
-    setTaskSections((sections) =>
-      sections.map((section) =>
-        section.id === sectionId
-          ? { ...section, isExpanded: !section.isExpanded }
-          : section
-      )
-    );
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
   };
 
-  const toggleTask = (sectionId: string, taskId: string) => {
-    setTaskSections((sections) =>
-      sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              tasks: section.tasks.map((task) =>
-                task.id === taskId
-                  ? { ...task, completed: !task.completed }
-                  : task
-              ),
-            }
-          : section
-      )
-    );
+  const toggleTask = async (sectionId: string, taskId: string) => {
+    // For missions, mark as complete in the backend
+    if (sectionId === "high-priority" || sectionId === "others") {
+      try {
+        await completeMission(taskId);
+        // Refetch to update UI
+        refetch();
+      } catch (error) {
+        console.error("Failed to complete mission:", error);
+      }
+    }
+    // For routines, we just toggle locally (routines don't have completion state)
   };
 
   // Pan responder for draggable bottom sheet
@@ -494,103 +716,142 @@ export default function ScheduleComponent() {
         style={[styles.taskScrollView, { top: Animated.add(bottomSheetY, 17) }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.taskSectionsContainer}>
-          {taskSections.map((section) => (
-            <View key={section.id} style={styles.taskSection}>
-              {/* Section Header */}
-              <TouchableOpacity
-                onPress={() => toggleSection(section.id)}
-                style={[
-                  styles.sectionHeader,
-                  { backgroundColor: section.backgroundColor },
-                ]}
-              >
-                <Text style={styles.sectionEmoji}>{section.emoji}</Text>
-                <Text style={styles.sectionTitle}>
-                  {section.title} ({section.count})
-                </Text>
-                <View style={styles.chevronIconContainer}>
-                  <Image
-                    source={{ uri: section.isExpanded ? img : img1 }}
-                    style={[
-                      styles.chevronIcon,
-                      !section.isExpanded && styles.chevronIconRotated,
-                    ]}
-                  />
-                </View>
-              </TouchableOpacity>
-
-              {/* Section Tasks */}
-              {section.isExpanded && (
-                <View
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>⚠️ Error Loading Data</Text>
+            <Text style={styles.errorText}>
+              {error.message || "Failed to fetch data"}
+            </Text>
+            <Text style={styles.errorDetails}>API: {apiURL}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => refetch()}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#A78BFA" />
+            <Text style={styles.loadingText}>Loading tasks...</Text>
+            <Text style={styles.loadingDetails}>Fetching from: {apiURL}</Text>
+          </View>
+        ) : taskSections.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No tasks for this day</Text>
+            <Text style={styles.emptySubtext}>
+              Tell Neuri what you need to do via voice!
+            </Text>
+            <Text style={styles.emptyDebug}>
+              Total missions: {missions.length} | Total routines:{" "}
+              {routines.length}
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => refetch()}
+            >
+              <Text style={styles.retryButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.taskSectionsContainer}>
+            {taskSections.map((section) => (
+              <View key={section.id} style={styles.taskSection}>
+                {/* Section Header */}
+                <TouchableOpacity
+                  onPress={() => toggleSection(section.id)}
                   style={[
-                    styles.tasksContainer,
-                    {
-                      backgroundColor: `${section.backgroundColor}40`,
-                      borderColor: "rgba(0,0,0,0.03)",
-                    },
+                    styles.sectionHeader,
+                    { backgroundColor: section.backgroundColor },
                   ]}
                 >
-                  {section.tasks.map((task) => (
-                    <View key={task.id} style={styles.taskRow}>
-                      <View style={styles.taskEmojiContainer}>
-                        <View
-                          style={[
-                            styles.taskCircleBackground,
-                            { backgroundColor: task.backgroundColor },
-                          ]}
-                        />
-                        <Text style={styles.taskEmoji}>{task.emoji}</Text>
-                      </View>
-                      <Text
-                        style={[
-                          styles.taskTitle,
-                          task.completed && styles.taskTitleCompleted,
-                        ]}
-                      >
-                        {task.title}
-                      </Text>
-                      {task.timeStart && task.timeEnd && (
-                        <Text style={styles.taskTime}>
-                          {task.timeStart} → {task.timeEnd}
-                        </Text>
-                      )}
-                      <TouchableOpacity
-                        onPress={() => toggleTask(section.id, task.id)}
-                        style={styles.checkboxContainer}
-                      >
-                        {task.completed ? (
-                          <Svg width="20" height="20" viewBox="0 0 20 20">
-                            <Circle
-                              cx="10"
-                              cy="10"
-                              r="9"
-                              stroke="#262135"
-                              strokeWidth="2"
-                              fill="#262135"
-                            />
-                            <Path
-                              d="M6 10L9 13L14 7"
-                              stroke="white"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </Svg>
-                        ) : (
-                          <Image
-                            source={{ uri: task.checkboxImage }}
-                            style={styles.checkboxImage}
+                  <Text style={styles.sectionEmoji}>{section.emoji}</Text>
+                  <Text style={styles.sectionTitle}>
+                    {section.title} ({section.count})
+                  </Text>
+                  <View style={styles.chevronIconContainer}>
+                    <Image
+                      source={{ uri: section.isExpanded ? img : img1 }}
+                      style={[
+                        styles.chevronIcon,
+                        !section.isExpanded && styles.chevronIconRotated,
+                      ]}
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Section Tasks */}
+                {section.isExpanded && (
+                  <View
+                    style={[
+                      styles.tasksContainer,
+                      {
+                        backgroundColor: `${section.backgroundColor}40`,
+                        borderColor: "rgba(0,0,0,0.03)",
+                      },
+                    ]}
+                  >
+                    {section.tasks.map((task) => (
+                      <View key={task.id} style={styles.taskRow}>
+                        <View style={styles.taskEmojiContainer}>
+                          <View
+                            style={[
+                              styles.taskCircleBackground,
+                              { backgroundColor: task.backgroundColor },
+                            ]}
                           />
+                          <Text style={styles.taskEmoji}>{task.emoji}</Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.taskTitle,
+                            task.completed && styles.taskTitleCompleted,
+                          ]}
+                        >
+                          {task.title}
+                        </Text>
+                        {task.timeStart && task.timeEnd && (
+                          <Text style={styles.taskTime}>
+                            {task.timeStart} → {task.timeEnd}
+                          </Text>
                         )}
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
+                        <TouchableOpacity
+                          onPress={() => toggleTask(section.id, task.id)}
+                          style={styles.checkboxContainer}
+                        >
+                          {task.completed ? (
+                            <Svg width="20" height="20" viewBox="0 0 20 20">
+                              <Circle
+                                cx="10"
+                                cy="10"
+                                r="9"
+                                stroke="#262135"
+                                strokeWidth="2"
+                                fill="#262135"
+                              />
+                              <Path
+                                d="M6 10L9 13L14 7"
+                                stroke="white"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </Svg>
+                          ) : (
+                            <Image
+                              source={{ uri: task.checkboxImage }}
+                              style={styles.checkboxImage}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
       </Animated.ScrollView>
     </View>
   );
@@ -932,5 +1193,101 @@ const styles = StyleSheet.create({
   checkboxImage: {
     width: 20,
     height: 20,
+  },
+
+  // Loading state
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontFamily: "Montserrat_500Medium",
+    fontSize: 14,
+    color: "#666",
+  },
+  loadingDetails: {
+    marginTop: 8,
+    fontFamily: "Montserrat_400Regular",
+    fontSize: 11,
+    color: "#999",
+    textAlign: "center",
+  },
+
+  // Error state
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  errorTitle: {
+    fontFamily: "MontserratAlternates_600SemiBold",
+    fontSize: 18,
+    color: "#FF4444",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  errorText: {
+    fontFamily: "Montserrat_400Regular",
+    fontSize: 14,
+    color: "#2C2438",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  errorDetails: {
+    fontFamily: "Montserrat_400Regular",
+    fontSize: 11,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+
+  // Empty state
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontFamily: "MontserratAlternates_600SemiBold",
+    fontSize: 18,
+    color: "#2C2438",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtext: {
+    fontFamily: "Montserrat_400Regular",
+    fontSize: 14,
+    color: "#8E8E93",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  emptyDebug: {
+    fontFamily: "Montserrat_400Regular",
+    fontSize: 11,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+
+  // Retry button
+  retryButton: {
+    backgroundColor: "#A78BFA",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    fontFamily: "MontserratAlternates_600SemiBold",
+    fontSize: 14,
+    color: "#FFFFFF",
   },
 });
