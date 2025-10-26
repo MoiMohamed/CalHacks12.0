@@ -82,26 +82,27 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     borderRadius: 11.5,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 0.288,
     borderColor: "#FFFFFF",
   },
   content: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   textContainer: {
     flex: 1,
+    paddingRight: 12,
   },
   title: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "MontserratAlternates_500Medium",
     color: "#EDEBFF",
-    lineHeight: 19,
+    lineHeight: 18,
     letterSpacing: 0.432,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   time: {
     fontSize: 12,
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.7)",
   },
   toggleContainer: {
-    marginLeft: 12,
+    alignSelf: "flex-start",
   },
   toggle: {
     width: 34.54,

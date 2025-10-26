@@ -91,7 +91,7 @@ export const mainAgent = {
         required: ["category_name"],
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/categories/get-or-create-body",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/categories/get-or-create-body",
         method: "POST",
         body: {
           user_id: "{vapi.user.id}",
@@ -120,7 +120,7 @@ export const mainAgent = {
         },
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/users/{vapi.user.id}/update-profile",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/users/{vapi.user.id}/update-profile",
         method: "POST",
         body: {
           name: "{name}",
@@ -184,7 +184,7 @@ export const mainAgent = {
         ],
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/missions/",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/missions/",
         method: "POST",
         body: {
           title: "{title}",
@@ -219,7 +219,7 @@ export const mainAgent = {
         required: ["mission_id", "subtask_titles"],
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/missions/{mission_id}/break-down",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/missions/{mission_id}/break-down",
         method: "POST",
         body: {
           subtask_titles: "{subtask_titles}",
@@ -264,7 +264,7 @@ export const mainAgent = {
         ],
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/routines/",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/routines/",
         method: "POST",
         body: {
           title: "{title}",
@@ -290,7 +290,7 @@ export const mainAgent = {
         required: ["mission_id"],
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/missions/{mission_id}/complete",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/missions/{mission_id}/complete",
         method: "PATCH",
       },
     },

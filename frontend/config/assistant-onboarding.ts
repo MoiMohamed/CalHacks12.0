@@ -61,7 +61,7 @@ export const onboardingAssistant = {
         required: ["category_name"],
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/categories/get-or-create-body",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/categories/get-or-create-body",
         method: "POST",
         // Send data in body for VAPI compatibility
         body: {
@@ -91,7 +91,7 @@ export const onboardingAssistant = {
         },
       },
       server: {
-        url: "https://overview-pas-product-noticed.trycloudflare.com/users/{vapi.user.id}/update-profile",
+        url: "https://calgary-convenience-submission-surgery.trycloudflare.com/users/{vapi.user.id}/update-profile",
         method: "POST",
         // Send profile data in body
         body: {

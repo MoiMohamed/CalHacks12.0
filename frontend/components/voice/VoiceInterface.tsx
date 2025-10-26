@@ -14,20 +14,26 @@ const { width, height } = Dimensions.get("window");
 
 interface VoiceInterfaceProps {
   isActive?: boolean;
+  isConnecting?: boolean;
   isMuted?: boolean;
   isPaused?: boolean;
   onSpeakerPress?: () => void;
   onMutePress?: () => void;
   onPausePress?: () => void;
   onEndPress?: () => void;
+  audioData?: number[]; // Real-time audio frequency data
 }
 
-// Custom sound wave component that matches the design
-const SoundWave: React.FC<{ isActive: boolean }> = ({ isActive }) => {
+// Custom sound wave component that responds to real audio
+const SoundWave: React.FC<{ isActive: boolean; audioData?: number[] }> = ({
+  isActive,
+  audioData,
+}) => {
   const barCount = 120;
   const animValues = useRef(
     Array.from({ length: barCount }, () => new Animated.Value(0.1))
   ).current;
+  const smoothedData = useRef(Array.from({ length: barCount }, () => 0.1));
 
   useEffect(() => {
     if (!isActive) {
@@ -39,37 +45,70 @@ const SoundWave: React.FC<{ isActive: boolean }> = ({ isActive }) => {
           useNativeDriver: false,
         }).start();
       });
+      smoothedData.current = Array.from({ length: barCount }, () => 0.1);
       return;
     }
 
-    const animations = animValues.map((value, index) => {
-      const randomDelay = Math.random() * 300;
-      const randomDuration = 400 + Math.random() * 300; // Medium speed
-      const targetValue = 0.2 + Math.random() * 0.8; // Random height between 0.2 and 1
+    // If we have real audio data, use it
+    if (audioData && audioData.length > 0) {
+      // Check if there's actual audio activity
+      const maxValue = Math.max(...audioData);
+      const hasAudio = maxValue > 10; // Threshold for detecting audio
 
-      return Animated.loop(
-        Animated.sequence([
-          Animated.delay(randomDelay),
-          Animated.timing(value, {
-            toValue: targetValue,
-            duration: randomDuration,
-            useNativeDriver: false,
-          }),
-          Animated.timing(value, {
-            toValue: 0.1,
-            duration: randomDuration,
-            useNativeDriver: false,
-          }),
-        ])
-      );
-    });
+      // Map audio frequency data to bar heights
+      const mappedData = Array.from({ length: barCount }, (_, i) => {
+        // Map barCount bars to the available audioData
+        // Use a non-linear mapping to emphasize interesting frequencies
+        const normalizedPosition = i / barCount;
+        // Weight towards lower-mid frequencies (where voice is)
+        const audioIndex = Math.floor(
+          Math.pow(normalizedPosition, 1.5) * audioData.length
+        );
+        const rawValue =
+          audioData[Math.min(audioIndex, audioData.length - 1)] || 0;
 
-    animations.forEach((anim) => anim.start());
+        // Normalize the value (0-1 range)
+        const normalizedValue = Math.min(rawValue / 255, 1);
 
-    return () => {
-      animations.forEach((anim) => anim.stop());
-    };
-  }, [isActive, animValues]);
+        // Apply adaptive smoothing - faster response for changes, slower decay
+        const isIncreasing = normalizedValue > smoothedData.current[i];
+        const smoothingFactor = isIncreasing ? 0.5 : 0.2; // Faster rise, slower fall
+
+        const smoothed =
+          smoothedData.current[i] * (1 - smoothingFactor) +
+          normalizedValue * smoothingFactor;
+        smoothedData.current[i] = smoothed;
+
+        // Apply minimum threshold for better visual
+        const minHeight = hasAudio ? 0.15 : 0.1;
+        return Math.max(smoothed, minHeight);
+      });
+
+      // Animate bars to match audio data with spring-like motion
+      mappedData.forEach((value, index) => {
+        Animated.spring(animValues[index], {
+          toValue: value,
+          tension: 100,
+          friction: 10,
+          useNativeDriver: false,
+        }).start();
+      });
+    } else {
+      // Fallback: gentle idle animation when no audio data available
+      const animations = animValues.map((value, index) => {
+        const phase = (index / barCount) * Math.PI * 2;
+        const targetValue = 0.15 + Math.sin(Date.now() / 500 + phase) * 0.1;
+
+        return Animated.timing(value, {
+          toValue: Math.max(targetValue, 0.1),
+          duration: 200,
+          useNativeDriver: false,
+        });
+      });
+
+      Animated.parallel(animations).start();
+    }
+  }, [isActive, audioData, animValues]);
 
   // Base heights for each bar to create a natural waveform pattern
   const baseHeights = Array.from({ length: barCount }, (_, i) => {
@@ -127,14 +166,41 @@ const SoundWave: React.FC<{ isActive: boolean }> = ({ isActive }) => {
 
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   isActive = true,
+  isConnecting = false,
   isMuted = false,
   isPaused = false,
   onSpeakerPress,
   onMutePress,
   onPausePress,
   onEndPress,
+  audioData,
 }) => {
   const insets = useSafeAreaInsets();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Pulsing animation for connecting state
+  useEffect(() => {
+    if (isConnecting) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 0.5,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isConnecting, pulseAnim]);
 
   // Calculate dynamic height based on screen size
   // Min 260px, max 300px for most phones
@@ -183,7 +249,34 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
           {/* Sound Wave Visualization */}
           <View className="h-[100] w-full justify-center items-center mb-4">
-            <SoundWave isActive={isActive && !isPaused} />
+            {isConnecting ? (
+              <Animated.View
+                className="flex-1 justify-center items-center"
+                style={{ opacity: pulseAnim }}
+              >
+                <Text
+                  className="text-white text-lg mb-2"
+                  style={{
+                    fontFamily: "MontserratAlternates_600SemiBold",
+                  }}
+                >
+                  Connecting...
+                </Text>
+                <Text
+                  className="text-white/70 text-sm"
+                  style={{
+                    fontFamily: "Montserrat_400Regular",
+                  }}
+                >
+                  Starting voice assistant
+                </Text>
+              </Animated.View>
+            ) : (
+              <SoundWave
+                isActive={isActive && !isPaused}
+                audioData={audioData}
+              />
+            )}
           </View>
 
           {/* Control Buttons */}
@@ -211,7 +304,9 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             {/* Mute Button */}
             <View className="items-center">
               <TouchableOpacity
-                className={`w-14 h-14 rounded-full justify-center items-center mb-1.5 ${isMuted ? "bg-white/30" : "bg-white/20"}`}
+                className={`w-14 h-14 rounded-full justify-center items-center mb-1.5 ${
+                  isMuted ? "bg-white/30" : "bg-white/20"
+                }`}
                 onPress={onMutePress}
                 activeOpacity={0.7}
               >
@@ -235,7 +330,9 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             {/* Pause Button */}
             <View className="items-center">
               <TouchableOpacity
-                className={`w-14 h-14 rounded-full justify-center items-center mb-1.5 ${isPaused ? "bg-white/30" : "bg-white/20"}`}
+                className={`w-14 h-14 rounded-full justify-center items-center mb-1.5 ${
+                  isPaused ? "bg-white/30" : "bg-white/20"
+                }`}
                 onPress={onPausePress}
                 activeOpacity={0.7}
               >

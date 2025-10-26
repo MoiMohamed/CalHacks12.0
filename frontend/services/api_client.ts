@@ -11,7 +11,7 @@ const getApiUrl = () => {
   }
 
   // Default to your cloudflare tunnel
-  return "https://overview-pas-product-noticed.trycloudflare.com";
+  return "https://calgary-convenience-submission-surgery.trycloudflare.com";
 };
 
 export const apiURL = (

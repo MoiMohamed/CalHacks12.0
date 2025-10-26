@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,14 +7,17 @@ import {
   StatusBar,
   Dimensions,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { RoutineCard } from "@/components/voice/RoutineCard";
 import { NoteCard } from "@/components/voice/NoteCard";
 import { TaskCard } from "@/components/voice/TaskCard";
 import { ReminderCard } from "@/components/voice/ReminderCard";
 import { VoiceInterface } from "@/components/voice/VoiceInterface";
+import { CelebrationConfetti } from "@/components/voice/CelebrationConfetti";
 import { VAPI_CREDENTIALS } from "@/config/vapi-credentials";
 import Vapi from "@vapi-ai/web";
 
@@ -25,9 +28,12 @@ export default function VoiceScreen() {
   const [isMuted, setIsMuted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [toolResponses, setToolResponses] = useState<any[]>([]);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [audioData, setAudioData] = useState<number[]>([]);
 
   const vapiRef = React.useRef<any>(null);
   const taskIdCounter = React.useRef(1000);
@@ -35,6 +41,11 @@ export default function VoiceScreen() {
   const processedMissions = React.useRef(new Set<string>());
   const processedRoutines = React.useRef(new Set<string>());
   const callStartedAtRef = React.useRef<number | null>(null);
+  const audioContextRef = React.useRef<AudioContext | null>(null);
+  const analyserRef = React.useRef<AnalyserNode | null>(null);
+  const animationFrameRef = React.useRef<number | null>(null);
+  const isAssistantSpeakingRef = React.useRef(false);
+  const isUserSpeakingRef = React.useRef(false);
 
   const handleMissionCreation = React.useCallback((missionData: any) => {
     if (!missionData || !missionData.title) {
@@ -138,6 +149,7 @@ export default function VoiceScreen() {
     processedMissions.current.add(routineKey);
 
     let frequency = "Custom schedule";
+    let time = "";
     if (routineData.schedule) {
       try {
         const scheduleData =
@@ -147,6 +159,10 @@ export default function VoiceScreen() {
         if (Array.isArray(scheduleData) && scheduleData.length > 0) {
           const days = scheduleData.map((s: any) => s.day).join(", ");
           frequency = days || "Custom schedule";
+          // Extract time from the first schedule entry
+          if (scheduleData[0]?.time) {
+            time = scheduleData[0].time;
+          }
         }
       } catch (e) {
         console.error("Error parsing schedule:", e);
@@ -158,9 +174,113 @@ export default function VoiceScreen() {
       emoji: "⚡",
       title: routineData.title,
       frequency,
+      time,
       enabled: true,
     };
     setRoutines((prevRoutines) => [newRoutine, ...prevRoutines]);
+  }, []);
+
+  // Setup audio analysis for real-time visualization
+  React.useEffect(() => {
+    const setupAudioAnalysis = async () => {
+      try {
+        // Check if we're in a web environment with Web Audio API
+        if (typeof window === "undefined" || !window.AudioContext) {
+          return;
+        }
+
+        // Initialize audio context
+        const audioContext = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+        audioContextRef.current = audioContext;
+
+        // Create analyser node
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512; // Gives us 256 frequency bins (more detail)
+        analyser.smoothingTimeConstant = 0.7; // Smooth out audio transitions
+        analyserRef.current = analyser;
+
+        // Capture microphone input for visualization
+        // Note: This will show the user's voice. The agent's audio is harder to capture
+        // without complex audio routing, but the visualization will still be active
+        // based on the conversation state (isAssistantSpeaking, isUserSpeaking)
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            const micSource = audioContext.createMediaStreamSource(stream);
+            micSource.connect(analyser);
+            console.log("✅ Audio visualization connected to microphone");
+          } catch (err) {
+            console.log("⚠️ Microphone access not available:", err);
+          }
+        }
+
+        // Start analyzing audio
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        let assistantAudioPhase = 0;
+
+        const updateAudioData = () => {
+          if (!analyserRef.current) return;
+
+          analyserRef.current.getByteFrequencyData(dataArray);
+
+          // If assistant is speaking, generate synthetic audio visualization
+          // This provides visual feedback even though we can't capture speaker output
+          let processedData = Array.from(dataArray);
+
+          if (isAssistantSpeakingRef.current) {
+            // Generate natural-looking wave pattern for assistant speech
+            assistantAudioPhase += 0.08;
+            processedData = processedData.map((value, index) => {
+              // Create a wave pattern that simulates speech frequencies
+              const frequency = index / bufferLength;
+              const speechFreq =
+                Math.sin(assistantAudioPhase + frequency * 15) * 40 +
+                Math.sin(assistantAudioPhase * 1.5 + frequency * 8) * 60 +
+                Math.sin(assistantAudioPhase * 0.7 + frequency * 25) * 30;
+
+              // Blend with any actual audio (like user's voice being picked up)
+              const synthetic = Math.abs(speechFreq) + 30;
+              return Math.max(value, synthetic);
+            });
+          } else {
+            assistantAudioPhase = 0;
+            // Apply post-processing to user's microphone input
+            processedData = processedData.map((value, index) => {
+              // Boost lower frequencies slightly for better visualization
+              const boost = index < bufferLength / 4 ? 1.3 : 1.0;
+              return Math.min(value * boost, 255);
+            });
+          }
+
+          setAudioData(processedData);
+          animationFrameRef.current = requestAnimationFrame(updateAudioData);
+        };
+
+        updateAudioData();
+      } catch (err) {
+        console.error("Error setting up audio analysis:", err);
+      }
+    };
+
+    setupAudioAnalysis();
+
+    return () => {
+      // Cleanup
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
   }, []);
 
   // Initialize VAPI (Web SDK) and route tool outputs into UI
@@ -170,9 +290,13 @@ export default function VoiceScreen() {
     const vapi = new Vapi(VAPI_CREDENTIALS.PUBLIC_KEY);
     vapiRef.current = vapi;
 
-    const handleCallStart = () => setIsConnected(true);
+    const handleCallStart = () => {
+      setIsConnecting(false);
+      setIsConnected(true);
+    };
     const handleCallEnd = () => {
       setIsConnected(false);
+      setIsConnecting(false);
       setIsPaused(false);
       setIsMuted(false);
     };
@@ -203,10 +327,12 @@ export default function VoiceScreen() {
       if (message?.type === "transcript") {
         if (message.role === "user") {
           setIsUserSpeaking(true);
+          isUserSpeakingRef.current = true;
           if (userSpeakingTimeoutRef.current)
             clearTimeout(userSpeakingTimeoutRef.current);
           userSpeakingTimeoutRef.current = setTimeout(() => {
             setIsUserSpeaking(false);
+            isUserSpeakingRef.current = false;
           }, 1200);
         }
       }
@@ -252,8 +378,14 @@ export default function VoiceScreen() {
     const handleError = (error: any) => {
       console.error("VAPI error:", error);
     };
-    const handleSpeechStart = () => setIsAssistantSpeaking(true);
-    const handleSpeechEnd = () => setIsAssistantSpeaking(false);
+    const handleSpeechStart = () => {
+      setIsAssistantSpeaking(true);
+      isAssistantSpeakingRef.current = true;
+    };
+    const handleSpeechEnd = () => {
+      setIsAssistantSpeaking(false);
+      isAssistantSpeakingRef.current = false;
+    };
 
     vapi.on("call-start", handleCallStart);
     vapi.on("call-end", handleCallEnd);
@@ -265,13 +397,17 @@ export default function VoiceScreen() {
     // Auto-start on web, with a user-interaction fallback if autoplay is blocked
     const assistantId = getAssistantId();
     if (assistantId) {
+      setIsConnecting(true);
       const tryStart = () => vapi.start(assistantId);
       tryStart().catch((err: any) => {
         console.warn("Auto-start blocked, waiting for user interaction", err);
+        setIsConnecting(false);
         const resume = () => {
-          tryStart().catch((e: any) =>
-            console.error("Start after interaction failed", e)
-          );
+          setIsConnecting(true);
+          tryStart().catch((e: any) => {
+            console.error("Start after interaction failed", e);
+            setIsConnecting(false);
+          });
           window.removeEventListener("click", resume);
           window.removeEventListener("touchstart", resume);
         };
@@ -296,6 +432,24 @@ export default function VoiceScreen() {
     };
   }, [handleMissionCreation, handleRoutineCreation]);
 
+  // Clear UI when navigating away from the voice screen
+  useFocusEffect(
+    React.useCallback(() => {
+      // Cleanup when screen loses focus
+      return () => {
+        console.log("Voice screen losing focus - clearing UI");
+        setTasks([]);
+        setRoutines([]);
+        setNotes([]);
+        setReminders([]);
+        setToolResponses([]);
+        processedMessageIds.current.clear();
+        processedMissions.current.clear();
+        processedRoutines.current.clear();
+      };
+    }, [])
+  );
+
   const getAssistantId = () =>
     VAPI_CREDENTIALS.MAIN_ASSISTANT_ID || VAPI_CREDENTIALS.ASSISTANT_ID;
 
@@ -307,9 +461,11 @@ export default function VoiceScreen() {
       return;
     }
     try {
+      setIsConnecting(true);
       await vapiRef.current.start(assistantId);
     } catch (e) {
       console.error("Failed to start call", e);
+      setIsConnecting(false);
     }
   };
 
@@ -349,6 +505,7 @@ export default function VoiceScreen() {
       emoji: string;
       title: string;
       frequency: string;
+      time?: string;
       enabled: boolean;
     }[]
   >([]);
@@ -361,6 +518,7 @@ export default function VoiceScreen() {
       title: string;
       date: string;
       enabled: boolean;
+      completed?: boolean;
       subtasks?: { id: string; name: string; completed: boolean }[];
     }[]
   >([]);
@@ -384,10 +542,46 @@ export default function VoiceScreen() {
     console.log(`Routine ${routineId} ${enabled ? "enabled" : "disabled"}`);
   };
 
+  // Handler for task completion with celebration
+  const handleTaskComplete = async (taskId: string) => {
+    console.log(`Task ${taskId} completed! 🎉`);
+
+    // Show confetti celebration
+    setShowCelebration(true);
+
+    // Haptic feedback (vibration) on mobile
+    if (Platform.OS !== "web") {
+      try {
+        await Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success
+        );
+      } catch (error) {
+        console.log("Could not trigger haptics:", error);
+      }
+    }
+
+    // Mark task as completed
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, completed: true } : task
+      )
+    );
+  };
+
+  // Limit displayed items to prevent UI overflow (show most recent 10 of each type)
+  const MAX_ITEMS_DISPLAYED = 10;
+  const displayedTasks = tasks.slice(0, MAX_ITEMS_DISPLAYED);
+  const displayedRoutines = routines.slice(0, MAX_ITEMS_DISPLAYED);
+  const displayedNotes = notes.slice(0, MAX_ITEMS_DISPLAYED);
+  const displayedReminders = reminders.slice(0, MAX_ITEMS_DISPLAYED);
+
   return (
     <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={styles.container} edges={["top"]}>
+        {showCelebration && (
+          <CelebrationConfetti onComplete={() => setShowCelebration(false)} />
+        )}
         <View style={styles.header}>
           <Text style={styles.title}>Neuri Voice</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
@@ -480,10 +674,10 @@ export default function VoiceScreen() {
             </View>
           )}
 
-          {tasks.length === 0 &&
-            routines.length === 0 &&
-            notes.length === 0 &&
-            reminders.length === 0 && (
+          {displayedTasks.length === 0 &&
+            displayedRoutines.length === 0 &&
+            displayedNotes.length === 0 &&
+            displayedReminders.length === 0 && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateTitle}>Start a conversation</Text>
                 <Text style={styles.emptyStateText}>
@@ -493,10 +687,14 @@ export default function VoiceScreen() {
               </View>
             )}
           {/* Tasks Section */}
-          {tasks.length > 0 && (
+          {displayedTasks.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Setting tasks</Text>
-              {tasks.map((task, index) => (
+              <Text style={styles.sectionTitle}>
+                Setting tasks{" "}
+                {tasks.length > MAX_ITEMS_DISPLAYED &&
+                  `(${displayedTasks.length}/${tasks.length})`}
+              </Text>
+              {displayedTasks.map((task, index) => (
                 <TaskCard
                   key={task.id}
                   title={task.title}
@@ -504,6 +702,8 @@ export default function VoiceScreen() {
                   subtasks={task.subtasks}
                   colorIndex={index}
                   enabled={task.enabled}
+                  completed={task.completed}
+                  onComplete={() => handleTaskComplete(task.id)}
                   onToggle={(enabled) =>
                     setTasks((prev) =>
                       prev.map((t) =>
@@ -517,15 +717,20 @@ export default function VoiceScreen() {
           )}
 
           {/* Routines Section */}
-          {routines.length > 0 && (
+          {displayedRoutines.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Setting habits</Text>
-              {routines.map((routine, index) => (
+              <Text style={styles.sectionTitle}>
+                Setting habits{" "}
+                {routines.length > MAX_ITEMS_DISPLAYED &&
+                  `(${displayedRoutines.length}/${routines.length})`}
+              </Text>
+              {displayedRoutines.map((routine, index) => (
                 <RoutineCard
                   key={routine.id}
                   emoji={routine.emoji}
                   title={routine.title}
                   frequency={routine.frequency}
+                  time={routine.time}
                   colorIndex={index}
                   enabled={routine.enabled}
                   onToggleRoutine={(enabled) =>
@@ -537,10 +742,14 @@ export default function VoiceScreen() {
           )}
 
           {/* Notes Section */}
-          {notes.length > 0 && (
+          {displayedNotes.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Writing notes</Text>
-              {notes.map((note, index) => (
+              <Text style={styles.sectionTitle}>
+                Writing notes{" "}
+                {notes.length > MAX_ITEMS_DISPLAYED &&
+                  `(${displayedNotes.length}/${notes.length})`}
+              </Text>
+              {displayedNotes.map((note, index) => (
                 <NoteCard
                   key={note.id}
                   title={note.title}
@@ -552,10 +761,14 @@ export default function VoiceScreen() {
           )}
 
           {/* Reminders Section */}
-          {reminders.length > 0 && (
+          {displayedReminders.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Setting reminders</Text>
-              {reminders.map((reminder, index) => (
+              <Text style={styles.sectionTitle}>
+                Setting reminders{" "}
+                {reminders.length > MAX_ITEMS_DISPLAYED &&
+                  `(${displayedReminders.length}/${reminders.length})`}
+              </Text>
+              {displayedReminders.map((reminder, index) => (
                 <ReminderCard
                   key={reminder.id}
                   title={reminder.title}
@@ -584,10 +797,12 @@ export default function VoiceScreen() {
           isActive={
             isConnected && !isPaused && (isAssistantSpeaking || isUserSpeaking)
           }
+          isConnecting={isConnecting}
           isMuted={isMuted}
           isPaused={isPaused}
+          audioData={audioData}
           onSpeakerPress={() => {
-            if (!isConnected) handleStartCall();
+            if (!isConnected && !isConnecting) handleStartCall();
           }}
           onMutePress={handleToggleMute}
           onPausePress={handleTogglePause}
@@ -639,7 +854,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 17,
