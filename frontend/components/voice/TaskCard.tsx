@@ -19,6 +19,9 @@ interface TaskCardProps {
   colorIndex?: number;
   enabled?: boolean;
   onToggle?: (enabled: boolean) => void;
+  status?: "pending" | "confirmed";
+  onAccept?: () => void;
+  onReject?: () => void;
 }
 
 // Predefined color palettes for task cards
@@ -33,6 +36,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   colorIndex = 0,
   enabled = true,
   onToggle,
+  status = "confirmed",
+  onAccept,
+  onReject,
 }) => {
   const [isEnabled, setIsEnabled] = useState(enabled);
   const togglePosition = useSharedValue(enabled ? 1 : 0);
@@ -97,6 +103,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               </Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {status === "pending" && (
+        <View style={styles.confirmationContainer}>
+          <Pressable
+            style={[styles.confirmationButton, styles.acceptButton]}
+            onPress={onAccept}
+          >
+            <Text style={styles.confirmationButtonText}>Accept</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.confirmationButton, styles.rejectButton]}
+            onPress={onReject}
+          >
+            <Text style={styles.confirmationButtonText}>Reject</Text>
+          </Pressable>
         </View>
       )}
     </View>
@@ -189,5 +212,30 @@ const styles = StyleSheet.create({
   subtaskNameCompleted: {
     opacity: 0.5,
     textDecorationLine: "line-through",
+  },
+  confirmationContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 0.288,
+    borderTopColor: "rgba(255, 255, 255, 0.2)",
+  },
+  confirmationButton: {
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginLeft: 8,
+  },
+  acceptButton: {
+    backgroundColor: "#FFFFFF40",
+  },
+  rejectButton: {
+    backgroundColor: "#00000040",
+  },
+  confirmationButtonText: {
+    color: "#FFFFFF",
+    fontFamily: "Montserrat_600SemiBold",
+    fontSize: 12,
   },
 });

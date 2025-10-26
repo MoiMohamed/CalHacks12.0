@@ -6,6 +6,7 @@ import {
   ScrollView,
   StatusBar,
   Dimensions,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -26,10 +27,143 @@ export default function VoiceScreen() {
   const [isConnected, setIsConnected] = useState(false);
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [toolResponses, setToolResponses] = useState<any[]>([]);
 
   const vapiRef = React.useRef<any>(null);
+  const taskIdCounter = React.useRef(1000);
+  const processedMessageIds = React.useRef(new Set<string>());
+  const processedMissions = React.useRef(new Set<string>());
+  const processedRoutines = React.useRef(new Set<string>());
+  const callStartedAtRef = React.useRef<number | null>(null);
 
-  // Initialize VAPI (Web SDK) using the simple docs approach
+  const handleMissionCreation = React.useCallback((missionData: any) => {
+    if (!missionData || !missionData.title) {
+      console.warn("Invalid mission data:", missionData);
+      return;
+    }
+
+    const normalize = (s: string | undefined) => (s || "").trim().toLowerCase();
+    const normalizedTitle = normalize(missionData.title);
+    const normalizedType = normalize(missionData.type || "task");
+    const deadline =
+      missionData.personal_deadline || missionData.true_deadline || "";
+    const normalizedDeadline = normalize((deadline as string).slice(0, 10));
+    const bodySnippet = normalize((missionData.body as string) || "").slice(
+      0,
+      50
+    );
+    const missionKey = `${normalizedType}|${normalizedTitle}|${normalizedDeadline}|${bodySnippet}`;
+    if (processedMissions.current.has(missionKey)) {
+      console.log(
+        "⚠️ Duplicate mission detected, skipping:",
+        missionData.title
+      );
+      return;
+    }
+    processedMissions.current.add(missionKey);
+
+    const formatDate = (dateStr: string) => {
+      if (!dateStr) return "No deadline";
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    const missionType = missionData.type || "task";
+
+    if (missionType === "note") {
+      const newNote = {
+        id: `note-${taskIdCounter.current++}`,
+        title: missionData.title,
+        body: missionData.body
+          ? missionData.body.split("\n").filter((line: string) => line.trim())
+          : [],
+      };
+      setNotes((prevNotes) => [newNote, ...prevNotes]);
+    } else if (missionType === "reminder") {
+      const deadline =
+        missionData.personal_deadline || missionData.true_deadline;
+      const reminderDate = deadline ? new Date(deadline) : new Date();
+
+      const newReminder = {
+        id: `reminder-${taskIdCounter.current++}`,
+        title: missionData.title,
+        time: reminderDate.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        date: reminderDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        }),
+        enabled: true,
+      };
+      setReminders((prevReminders) => [newReminder, ...prevReminders]);
+    } else {
+      const deadline =
+        missionData.personal_deadline || missionData.true_deadline;
+      const formattedDate = deadline ? formatDate(deadline) : "No deadline";
+
+      const newTask = {
+        id: `task-${taskIdCounter.current++}`,
+        title: missionData.title,
+        date: formattedDate,
+        enabled: true,
+        subtasks: [],
+      };
+      setTasks((prevTasks) => [newTask, ...prevTasks]);
+    }
+  }, []);
+
+  const handleRoutineCreation = React.useCallback((routineData: any) => {
+    if (!routineData || !routineData.title) {
+      console.warn("Invalid routine data:", routineData);
+      return;
+    }
+
+    const routineKey = `routine-${routineData.title}-${
+      routineData.created_at || Date.now()
+    }`;
+    if (processedMissions.current.has(routineKey)) {
+      console.log(
+        "⚠️ Duplicate routine detected, skipping:",
+        routineData.title
+      );
+      return;
+    }
+    processedMissions.current.add(routineKey);
+
+    let frequency = "Custom schedule";
+    if (routineData.schedule) {
+      try {
+        const scheduleData =
+          typeof routineData.schedule === "string"
+            ? JSON.parse(routineData.schedule)
+            : routineData.schedule;
+        if (Array.isArray(scheduleData) && scheduleData.length > 0) {
+          const days = scheduleData.map((s: any) => s.day).join(", ");
+          frequency = days || "Custom schedule";
+        }
+      } catch (e) {
+        console.error("Error parsing schedule:", e);
+      }
+    }
+
+    const newRoutine = {
+      id: `routine-${taskIdCounter.current++}`,
+      emoji: "⚡",
+      title: routineData.title,
+      frequency,
+      enabled: true,
+    };
+    setRoutines((prevRoutines) => [newRoutine, ...prevRoutines]);
+  }, []);
+
+  // Initialize VAPI (Web SDK) and route tool outputs into UI
   React.useEffect(() => {
     if (vapiRef.current) return;
 
@@ -44,8 +178,29 @@ export default function VoiceScreen() {
     };
     const userSpeakingTimeoutRef: { current: any } = { current: null };
     const handleMessage = (message: any) => {
+      const messageId =
+        message?.messageId ||
+        message?.id ||
+        `${message?.type}-${Date.now()}-${Math.random()}`;
+
+      // Persist recent tool responses for debugging
+      if (
+        message?.type === "tool-calls-result" ||
+        message?.type === "tool-call-result" ||
+        message?.toolCallResult ||
+        message?.result?.data
+      ) {
+        setToolResponses((prev) => [
+          {
+            timestamp: new Date().toLocaleTimeString(),
+            type: message.type,
+            data: message,
+          },
+          ...prev.slice(0, 9),
+        ]);
+      }
+
       if (message?.type === "transcript") {
-        console.log(`${message.role}: ${message.transcript}`);
         if (message.role === "user") {
           setIsUserSpeaking(true);
           if (userSpeakingTimeoutRef.current)
@@ -53,6 +208,44 @@ export default function VoiceScreen() {
           userSpeakingTimeoutRef.current = setTimeout(() => {
             setIsUserSpeaking(false);
           }, 1200);
+        }
+      }
+
+      // Extract missions/routines from any message shape
+      const extractDataFromMessage = (
+        obj: any
+      ): { missions: any[]; routines: any[] } => {
+        const missions: any[] = [];
+        const routines: any[] = [];
+        const visit = (o: any) => {
+          if (!o || typeof o !== "object") return;
+          if (
+            o?.title &&
+            o?.type &&
+            ["task", "project", "note", "reminder"].includes(o.type)
+          ) {
+            missions.push(o);
+          }
+          if (o?.title && (o?.schedule || o?.frequency)) {
+            routines.push(o);
+          }
+          for (const k in o) {
+            if (o[k] && typeof o[k] === "object") visit(o[k]);
+          }
+        };
+        visit(obj);
+        return { missions, routines };
+      };
+
+      if (!message?.type?.includes("transcript")) {
+        const { missions, routines } = extractDataFromMessage(message);
+        if (
+          (missions.length > 0 || routines.length > 0) &&
+          !processedMessageIds.current.has(messageId)
+        ) {
+          processedMessageIds.current.add(messageId);
+          missions.forEach((m) => handleMissionCreation(m));
+          routines.forEach((r) => handleRoutineCreation(r));
         }
       }
     };
@@ -101,7 +294,7 @@ export default function VoiceScreen() {
       } catch {}
       vapiRef.current = null;
     };
-  }, []);
+  }, [handleMissionCreation, handleRoutineCreation]);
 
   const getAssistantId = () =>
     VAPI_CREDENTIALS.MAIN_ASSISTANT_ID || VAPI_CREDENTIALS.ASSISTANT_ID;
@@ -149,73 +342,37 @@ export default function VoiceScreen() {
   // Calculate spacer height to match VoiceInterface height
   const interfaceHeight = Math.min(Math.max(height * 0.35, 260), 300);
 
-  // Sample data - this will be dynamically generated by AI in the future
-  const [routines, setRoutines] = useState([
+  // Dynamic lists populated from Vapi tool outputs
+  const [routines, setRoutines] = useState<
     {
-      id: "1",
-      emoji: "🏠",
-      title: "Room cleaning",
-      frequency: "Every Monday",
-      enabled: true,
-    },
+      id: string;
+      emoji: string;
+      title: string;
+      frequency: string;
+      enabled: boolean;
+    }[]
+  >([]);
+  const [notes, setNotes] = useState<
+    { id: string; title: string; body: string[] }[]
+  >([]);
+  const [tasks, setTasks] = useState<
     {
-      id: "2",
-      emoji: "🏃",
-      title: "Morning workout",
-      frequency: "Daily",
-      enabled: true,
-    },
+      id: string;
+      title: string;
+      date: string;
+      enabled: boolean;
+      subtasks?: { id: string; name: string; completed: boolean }[];
+    }[]
+  >([]);
+  const [reminders, setReminders] = useState<
     {
-      id: "3",
-      emoji: "📚",
-      title: "Study session",
-      frequency: "Monday, Wednesday, Friday",
-      enabled: true,
-    },
-  ]);
-
-  const notes = [
-    {
-      id: "1",
-      title: "Key takeaways from 10/25 sync",
-      body: [
-        "Finalize UI mockups by Monday.",
-        "Alex to check the Vapi API integration.",
-        "Need to test the routine_task_templates table logic.",
-      ],
-    },
-  ];
-
-  const [tasks, setTasks] = useState([
-    {
-      id: "1",
-      title: "Website Redesign Project",
-      date: "Monday, December 30",
-      enabled: false,
-      subtasks: [
-        { id: "1-1", name: "Create wireframes", completed: true },
-        { id: "1-2", name: "Design mockups", completed: false },
-        { id: "1-3", name: "Implement responsive layout", completed: false },
-        { id: "1-4", name: "Add animations and transitions", completed: false },
-      ],
-    },
-    {
-      id: "2",
-      title: "Finish CS110 Assignment #P1",
-      date: "Monday, December 25",
-      enabled: false,
-    },
-  ]);
-
-  const [reminders, setReminders] = useState([
-    {
-      id: "1",
-      title: "Squid Games",
-      time: "4:00 PM",
-      date: "Thursday, December 26",
-      enabled: false,
-    },
-  ]);
+      id: string;
+      title: string;
+      time: string;
+      date: string;
+      enabled: boolean;
+    }[]
+  >([]);
 
   // Handler for toggling entire routine on/off
   const handleToggleRoutine = (routineId: string, enabled: boolean) => {
@@ -233,6 +390,65 @@ export default function VoiceScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <Text style={styles.title}>Neuri Voice</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => {
+                setTasks([]);
+                setRoutines([]);
+                setNotes([]);
+                setReminders([]);
+                setToolResponses([]);
+                processedMessageIds.current.clear();
+                processedMissions.current.clear();
+              }}
+              style={[styles.debugButton, { backgroundColor: "#FF6B6B" }]}
+            >
+              <Text style={styles.debugButtonText}>🧹 Clear</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                // Test task
+                handleMissionCreation({
+                  title: "Test Task",
+                  type: "task",
+                  personal_deadline: new Date(
+                    Date.now() + 24 * 60 * 60 * 1000
+                  ).toISOString(),
+                });
+                // Test note
+                setTimeout(() => {
+                  handleMissionCreation({
+                    title: "Test Note",
+                    type: "note",
+                    body: "Line 1\nLine 2\nLine 3",
+                  });
+                }, 100);
+                // Test reminder
+                setTimeout(() => {
+                  handleMissionCreation({
+                    title: "Test Reminder",
+                    type: "reminder",
+                    personal_deadline: new Date(
+                      Date.now() + 2 * 60 * 60 * 1000
+                    ).toISOString(),
+                  });
+                }, 200);
+                // Test routine
+                setTimeout(() => {
+                  handleRoutineCreation({
+                    title: "Test Routine",
+                    schedule: [
+                      { day: "Monday", time: "9:00 AM" },
+                      { day: "Friday", time: "9:00 AM" },
+                    ],
+                  });
+                }, 300);
+              }}
+              style={styles.debugButton}
+            >
+              <Text style={styles.debugButtonText}>🧪 Test All</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -240,6 +456,42 @@ export default function VoiceScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {toolResponses.length > 0 && (
+            <View style={styles.debugSection}>
+              <Text style={styles.debugTitle}>
+                🔍 Tool Responses (for debugging)
+              </Text>
+              {toolResponses.map((response, index) => (
+                <View key={index} style={styles.debugResponseCard}>
+                  <Text style={styles.debugResponseTime}>
+                    {response.timestamp} - {response.type}
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    style={styles.debugResponseScroll}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    <Text style={styles.debugResponseJson}>
+                      {JSON.stringify(response.data, null, 2)}
+                    </Text>
+                  </ScrollView>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {tasks.length === 0 &&
+            routines.length === 0 &&
+            notes.length === 0 &&
+            reminders.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateTitle}>Start a conversation</Text>
+                <Text style={styles.emptyStateText}>
+                  Tell Neuri what you need to do, and watch your tasks appear
+                  here in real-time.
+                </Text>
+              </View>
+            )}
           {/* Tasks Section */}
           {tasks.length > 0 && (
             <View style={styles.section}>
@@ -352,9 +604,12 @@ export default function VoiceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E8E3F0",
+    backgroundColor: "#FFFFFF",
   },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 8,
     paddingBottom: 16,
@@ -364,6 +619,17 @@ const styles = StyleSheet.create({
     fontFamily: "MontserratAlternates_700Bold",
     color: "#2C2438",
     letterSpacing: -0.5,
+  },
+  debugButton: {
+    backgroundColor: "#A78BFA",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  debugButtonText: {
+    color: "#FFFFFF",
+    fontFamily: "Montserrat_600SemiBold",
+    fontSize: 14,
   },
   scrollView: {
     flex: 1,
@@ -380,5 +646,63 @@ const styles = StyleSheet.create({
     fontFamily: "Montserrat_600SemiBold",
     color: "#2C2438",
     marginBottom: 12,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+    paddingVertical: 80,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontFamily: "MontserratAlternates_700Bold",
+    color: "#2C2438",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontFamily: "Montserrat_400Regular",
+    color: "#8E8E93",
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  debugSection: {
+    marginBottom: 20,
+    padding: 12,
+    backgroundColor: "#F0F0F0",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#A78BFA",
+  },
+  debugTitle: {
+    fontSize: 16,
+    fontFamily: "Montserrat_600SemiBold",
+    color: "#2C2438",
+    marginBottom: 12,
+  },
+  debugResponseCard: {
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  debugResponseTime: {
+    fontSize: 12,
+    fontFamily: "Montserrat_600SemiBold",
+    color: "#666",
+    marginBottom: 8,
+  },
+  debugResponseScroll: {
+    maxHeight: 200,
+  },
+  debugResponseJson: {
+    fontSize: 10,
+    fontFamily: "Courier",
+    color: "#333",
+    lineHeight: 14,
   },
 });

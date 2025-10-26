@@ -29,6 +29,7 @@ export default function TabLayout() {
               paddingTop: 10,
             },
       }}
+      initialRouteName="schedule"
     >
       <Tabs.Screen
         name="index"
@@ -37,6 +38,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="house.fill" color={color} />
           ),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -85,6 +87,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="person.fill" color={color} />
           ),
+          href: null,
         }}
       />
       <Tabs.Screen

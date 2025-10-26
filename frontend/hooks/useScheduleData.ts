@@ -1,6 +1,35 @@
-import { useState, useEffect } from "react";
-import { Task, TaskSection } from "../types/api";
-import { apiClient } from "../services/api_client";
+import { useEffect, useMemo, useState } from "react";
+import { useUsers } from "./useUsers";
+import {
+  useHighPriorityMissions,
+  useOverdueMissions,
+  useUpdateMission,
+} from "./useMissions";
+import { useDayRoutines } from "./useRoutines";
+
+// Frontend view-model types for the Schedule UI
+export interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+  // Optional presentation fields used by the UI
+  emoji?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  backgroundColor?: string;
+  circleImage?: string;
+  checkboxImage?: string;
+}
+
+export interface TaskSection {
+  id: string;
+  emoji: string;
+  title: string;
+  count: number;
+  backgroundColor: string;
+  isExpanded: boolean;
+  tasks: Task[];
+}
 
 // Custom hook for backend integration
 export function useScheduleData() {
@@ -8,158 +37,128 @@ export function useScheduleData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch data from backend
-  const fetchScheduleData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Determine current user (first user as default for now)
+  const {
+    data: users,
+    isLoading: usersLoading,
+    error: usersError,
+  } = useUsers();
+  const currentUserId = useMemo(() => users?.[0]?.id ?? "", [users]);
 
-      // TODO: Replace with actual API call when backend is ready
-      // const response = await apiClient.get('/schedule');
-      // setTaskSections(response.data);
+  // Day of week for routines
+  const dayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const today = new Date();
+  const todayName = dayNames[today.getDay()];
 
-      // Mock data for now - matches the exact design
-      const mockData: TaskSection[] = [
-        {
-          id: "high-priority",
+  // Queries
+  const {
+    data: highPriority,
+    isLoading: hpLoading,
+    error: hpError,
+  } = useHighPriorityMissions(currentUserId);
+  const {
+    data: overdue,
+    isLoading: odLoading,
+    error: odError,
+  } = useOverdueMissions(currentUserId);
+  const {
+    data: routines,
+    isLoading: rtLoading,
+    error: rtError,
+  } = useDayRoutines(currentUserId, todayName);
+
+  const { mutateAsync: updateMission } = useUpdateMission();
+
+  // Build sections when data changes
+  useEffect(() => {
+    setLoading(usersLoading || hpLoading || odLoading || rtLoading);
+
+    const errMsg =
+      (usersError as Error | undefined)?.message ||
+      (hpError as Error | undefined)?.message ||
+      (odError as Error | undefined)?.message ||
+      (rtError as Error | undefined)?.message ||
+      null;
+    setError(errMsg);
+
+    if (!currentUserId || usersLoading || hpLoading || odLoading || rtLoading) {
+      return;
+    }
+
+    const highPrioritySection: TaskSection = {
+      id: "high-priority",
+      emoji: "🔥",
+      title: "HIGH PRIORITY",
+      backgroundColor: "#FCECED",
+      isExpanded: true,
+      count: highPriority?.length ?? 0,
+      tasks:
+        highPriority?.map((m) => ({
+          id: m.id,
+          title: m.title,
+          completed: m.is_complete,
           emoji: "🔥",
-          title: "HIGH PRIORITY",
-          count: 3,
-          backgroundColor: "#fceced",
-          isExpanded: true,
-          tasks: [
-            {
-              id: "hp-1",
-              emoji: "💰",
-              title: "Pay my bills",
-              completed: false,
-              backgroundColor: "#F5D0F9",
-            },
-            {
-              id: "hp-2",
-              emoji: "💻",
-              title: "Complete my CS110 assignment",
-              completed: false,
-              backgroundColor: "#FDEDE0",
-            },
-            {
-              id: "hp-3",
-              emoji: "✍️",
-              title: "Write my B111 thesis",
-              completed: false,
-              backgroundColor: "#EBE9FC",
-            },
-          ],
-        },
-        {
-          id: "routine",
-          emoji: "🌳",
-          title: "ROUTINE",
-          count: 4,
-          backgroundColor: "#f3fdd3",
-          isExpanded: true,
-          tasks: [
-            {
-              id: "rt-1",
-              emoji: "🧘",
-              title: "Meditation",
-              completed: false,
-              timeStart: "11 AM",
-              timeEnd: "12 PM",
-              backgroundColor: "#F3FDD3",
-            },
-            {
-              id: "rt-2",
-              emoji: "💪",
-              title: "Gym",
-              completed: false,
-              timeStart: "2 PM",
-              timeEnd: "3 PM",
-              backgroundColor: "#F9D0D1",
-            },
-            {
-              id: "rt-3",
-              emoji: "🍗",
-              title: "Lunch",
-              completed: false,
-              timeStart: "3 PM",
-              timeEnd: "3:30 PM",
-              backgroundColor: "#D3FDF2",
-            },
-            {
-              id: "rt-4",
-              emoji: "📘",
-              title: "Reading",
-              completed: false,
-              timeStart: "9 PM",
-              timeEnd: "9:45 PM",
-              backgroundColor: "#D3E4FD",
-            },
-          ],
-        },
-        {
-          id: "others",
-          emoji: "🤌",
-          title: "OTHERS",
-          count: 2,
-          backgroundColor: "#d3eefd",
-          isExpanded: true,
-          tasks: [
-            {
-              id: "ot-1",
-              emoji: "🐕‍🦺",
-              title: "Walk the dog",
-              completed: false,
-              backgroundColor: "#FDE0D3",
-            },
-            {
-              id: "ot-2",
-              emoji: "📺",
-              title: "Watch the new episode of AOT",
-              completed: false,
-              backgroundColor: "#DED0F9",
-            },
-          ],
-        },
-      ];
+          backgroundColor: "#F5D0F9",
+        })) ?? [],
+    };
 
-      setTaskSections(mockData);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch schedule data"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    const routineSection: TaskSection = {
+      id: "routine",
+      emoji: "🌳",
+      title: "ROUTINE",
+      backgroundColor: "#F3FDD3",
+      isExpanded: true,
+      count: routines?.length ?? 0,
+      tasks:
+        routines?.map((r) => ({
+          id: r.id,
+          title: r.title,
+          completed: false,
+          emoji: "🧘",
+          backgroundColor: "#F3FDD3",
+        })) ?? [],
+    };
 
-  // Update task completion
-  const updateTaskCompletion = async (
-    sectionId: string,
-    taskId: string,
-    completed: boolean
-  ) => {
-    try {
-      // TODO: Replace with actual API call when backend is ready
-      // await apiClient.patch(`/tasks/${taskId}`, { completed });
+    const othersSection: TaskSection = {
+      id: "others",
+      emoji: "🤌",
+      title: "OTHERS",
+      backgroundColor: "#D3EEFD",
+      isExpanded: true,
+      count: overdue?.length ?? 0,
+      tasks:
+        overdue?.map((m) => ({
+          id: m.id,
+          title: m.title,
+          completed: m.is_complete,
+          emoji: "📝",
+          backgroundColor: "#DED0F9",
+        })) ?? [],
+    };
 
-      // For now, just update local state
-      setTaskSections((sections) =>
-        sections.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                tasks: section.tasks.map((task) =>
-                  task.id === taskId ? { ...task, completed } : task
-                ),
-              }
-            : section
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update task");
-    }
-  };
+    setTaskSections([highPrioritySection, routineSection, othersSection]);
+  }, [
+    currentUserId,
+    usersLoading,
+    usersError,
+    highPriority,
+    hpLoading,
+    hpError,
+    overdue,
+    odLoading,
+    odError,
+    routines,
+    rtLoading,
+    rtError,
+  ]);
 
   // Toggle section expansion
   const toggleSection = (sectionId: string) => {
@@ -172,25 +171,50 @@ export function useScheduleData() {
     );
   };
 
-  // Toggle task completion
-  const toggleTask = (sectionId: string, taskId: string) => {
+  // Toggle task completion (persists via missions API)
+  const toggleTask = async (sectionId: string, taskId: string) => {
     const section = taskSections.find((s) => s.id === sectionId);
     const task = section?.tasks.find((t) => t.id === taskId);
-    if (task) {
-      updateTaskCompletion(sectionId, taskId, !task.completed);
+    if (!task) return;
+    const next = !task.completed;
+    // optimistic update
+    setTaskSections((sections) =>
+      sections.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              tasks: s.tasks.map((t) =>
+                t.id === taskId ? { ...t, completed: next } : t
+              ),
+            }
+          : s
+      )
+    );
+    try {
+      await updateMission({ id: taskId, data: { is_complete: next } });
+    } catch (e) {
+      // revert on error
+      setTaskSections((sections) =>
+        sections.map((s) =>
+          s.id === sectionId
+            ? {
+                ...s,
+                tasks: s.tasks.map((t) =>
+                  t.id === taskId ? { ...t, completed: !next } : t
+                ),
+              }
+            : s
+        )
+      );
+      setError((e as Error)?.message || "Failed to update task");
     }
   };
 
-  useEffect(() => {
-    fetchScheduleData();
-  }, []);
-
-  return {
-    taskSections,
-    loading,
-    error,
-    toggleSection,
-    toggleTask,
-    refetch: fetchScheduleData,
+  const refetch = () => {
+    // Consumers can rely on React Query cache invalidations via mutations
+    // Here we simply rebuild sections from latest hook data
+    setTaskSections((prev) => [...prev]);
   };
+
+  return { taskSections, loading, error, toggleSection, toggleTask, refetch };
 }
