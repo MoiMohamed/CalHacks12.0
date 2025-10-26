@@ -29,13 +29,13 @@ class MissionService:
         """Create a new mission"""
         mission = await self.mission_repo.create(session, data)
         
-        # # Add points to user's reward
-        # await self.reward_repo.add_points_for_mission(
-        #     session, 
-        #     data.user_id, 
-        #     data.type.value,
-        #     is_subtask=data.parent_project_id is not None
-        # )
+        # Add points to user's reward
+        await self.reward_repo.add_points_for_mission(
+            session, 
+            data.user_id, 
+            data.type.value,
+            is_subtask=data.parent_project_id is not None
+        )
         
         return MissionRead.model_validate(mission)
 
@@ -142,18 +142,9 @@ class MissionService:
         overdue_missions = await self.mission_repo.get_overdue_missions(session, user_id)
         today_missions = await self.mission_repo.get_today_missions(session, user_id)
         
-        # Get reward data
-        reward = await self.reward_repo.get_by_user(session, user_id)
-        
         return {
             "recent_missions": [MissionRead.model_validate(m) for m in recent_missions],
             "overdue_missions": [MissionRead.model_validate(m) for m in overdue_missions],
             "today_missions": [MissionRead.model_validate(m) for m in today_missions],
-            "total_pending": len(await self.mission_repo.list_pending_by_user(session, user_id)),
-            "reward": {
-                "points": reward.points if reward else 0,
-                "streak": reward.streak if reward else 0,
-                "total_tasks_done": reward.total_tasks_done if reward else 0,
-                "milestones_unlocked": reward.milestones_unlocked if reward else ""
-            } if reward else None
+            "total_pending": len(await self.mission_repo.list_pending_by_user(session, user_id))
         }

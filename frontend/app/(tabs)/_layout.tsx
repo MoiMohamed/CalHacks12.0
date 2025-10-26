@@ -1,6 +1,7 @@
 import { Tabs, useSegments } from "expo-router";
 import React from "react";
 import { View, StyleSheet } from "react-native";
+import { StatusBarUI } from "@/components/StatusBarUI";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -13,96 +14,101 @@ export default function TabLayout() {
   const isVoiceScreen = segments.some((segment) => segment === "voice");
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-        tabBarInactiveTintColor: "#8E8E93",
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: isVoiceScreen
-          ? { display: "none" }
-          : {
-              backgroundColor: "#28282D",
-              borderTopWidth: 0,
-              height: 90,
-              paddingBottom: 20,
-              paddingTop: 10,
-            },
-      }}
-      initialRouteName="schedule"
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
-          ),
-          href: null,
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+          tabBarInactiveTintColor: "#8E8E93",
+          headerShown: false,
+          tabBarButton: HapticTab,
+          tabBarStyle: isVoiceScreen
+            ? { display: "none" }
+            : {
+                backgroundColor: "#28282D",
+                borderTopWidth: 0,
+                height: 90,
+                paddingBottom: 20,
+                paddingTop: 10,
+              },
         }}
-      />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          title: "Schedule",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="magnifyingglass" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="voice"
-        options={{
-          title: "",
-          tabBarIcon: ({ color, focused }) => (
-            <View
-              style={[
-                styles.voiceButtonContainer,
-                { backgroundColor: "#A78BFA" },
-              ]}
-            >
-              <IconSymbol size={28} name="waveform" color="#FFFFFF" />
-            </View>
-          ),
-          tabBarButton: (props) => (
-            <View style={styles.voiceButtonWrapper}>
-              <HapticTab {...props} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="notes"
-        options={{
-          title: "Notes",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="bookmark.fill" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="person.fill" color={color} />
-          ),
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="onboarding"
-        options={{
-          href: null,
-        }}
-      />
-    </Tabs>
+        initialRouteName="schedule"
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ color }) => (
+              <IconSymbol size={28} name="house.fill" color={color} />
+            ),
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="schedule"
+          options={{
+            title: "Schedule",
+            tabBarIcon: ({ color }) => (
+              <IconSymbol size={28} name="magnifyingglass" color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="voice"
+          options={{
+            title: "",
+            tabBarIcon: ({ color, focused }) => (
+              <View
+                style={[
+                  styles.voiceButtonContainer,
+                  { backgroundColor: "#A78BFA" },
+                ]}
+              >
+                <IconSymbol size={28} name="waveform" color="#FFFFFF" />
+              </View>
+            ),
+            tabBarButton: (props) => (
+              <View style={styles.voiceButtonWrapper}>
+                <HapticTab {...props} />
+              </View>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="notes"
+          options={{
+            title: "Notes",
+            tabBarIcon: ({ color }) => (
+              <IconSymbol size={28} name="bookmark.fill" color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            tabBarIcon: ({ color }) => (
+              <IconSymbol size={28} name="person.fill" color={color} />
+            ),
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="explore"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="onboarding"
+          options={{
+            href: null,
+          }}
+        />
+      </Tabs>
+      <View style={styles.statusOverlay} pointerEvents="none">
+        <StatusBarUI />
+      </View>
+    </View>
   );
 }
 
@@ -123,5 +129,15 @@ const styles = StyleSheet.create({
   voiceButtonWrapper: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  statusOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    elevation: 999,
+    height: 44,
+    backgroundColor: "#262135",
   },
 });

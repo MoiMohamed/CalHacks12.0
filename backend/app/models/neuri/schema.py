@@ -4,7 +4,7 @@ from typing import Annotated
 from typing_extensions import TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 
 from app.models.neuri.model import MissionType
 
@@ -45,7 +45,6 @@ class UserRead(UserBase):
 
 class UserProfileSetup(BaseModel):
     """Schema for initial user profile setup during onboarding"""
-
     name: str = Field(..., max_length=255)
     pace: str = Field(..., max_length=50)  # "relaxed", "focused"
     preferred_work_time: str = Field(..., max_length=50)  # "evening", "morning"
@@ -99,7 +98,6 @@ class RoutineRead(RoutineBase):
 
 class RoutineCreateWithSchedule(BaseModel):
     """Schema for creating routine with schedule list"""
-
     user_id: UUID
     category_id: UUID | None = None
     title: str = Field(..., max_length=255)
@@ -112,8 +110,11 @@ class MissionBase(BaseModel):
     type: MissionType
     user_id: UUID
     category_id: UUID | None = None
-    parent_project_id: UUID | None = Field(None, alias="parentProjectId")
-    parent_routine_id: UUID | None = Field(None, alias="parentRoutineId")
+    parent_project_id: UUID | None = Field(
+        None,
+        validation_alias=AliasChoices("parentProjectId", "parent_project_id"),
+    )
+    parent_routine_id: UUID | None = None
     body: str | None = None
     true_deadline: datetime | None = None
     personal_deadline: datetime | None = None
@@ -121,8 +122,6 @@ class MissionBase(BaseModel):
     is_complete: bool = False
     heaviness: int | None = Field(None, ge=1, le=10)
     priority: int | None = Field(None, ge=1, le=10)
-
-    model_config = ConfigDict(populate_by_name=True)
 
 
 class MissionCreate(MissionBase): ...
@@ -153,7 +152,6 @@ class MissionRead(MissionBase):
 
 class MissionWithRelationsRead(MissionRead):
     """Mission with related entities"""
-
     category: CategoryRead | None = None
     parent_project: MissionRead | None = None
     parent_routine: RoutineRead | None = None
@@ -189,7 +187,6 @@ class RewardRead(RewardBase):
 
 class DashboardStats(BaseModel):
     """Dashboard statistics for user"""
-
     total_points: int
     current_streak: int
     total_tasks_done: int
@@ -199,7 +196,6 @@ class DashboardStats(BaseModel):
 # Dashboard/Summary Schemas
 class UserDashboardRead(BaseModel):
     """User dashboard with summary data"""
-
     user: UserRead
     reward: RewardRead
     total_missions: int
@@ -212,7 +208,6 @@ class UserDashboardRead(BaseModel):
 
 class MissionStatsRead(BaseModel):
     """Mission statistics"""
-
     total: int
     completed: int
     pending: int
@@ -222,21 +217,18 @@ class MissionStatsRead(BaseModel):
 
 class RoutineScheduleRead(BaseModel):
     """Routine schedule with parsed schedule data"""
-
     routine: RoutineRead
     schedule_items: list[ScheduleItem]
 
 
 class RoutineTaskGeneration(BaseModel):
     """Schema for generating tasks from a routine over N days"""
-
     routine_id: UUID
     days: int = Field(..., ge=1, le=365)  # Between 1 and 365 days
 
 
 class GeneratedTask(BaseModel):
     """A task generated from a routine"""
-
     title: str
     scheduled_date: datetime
     day_number: int
@@ -245,7 +237,6 @@ class GeneratedTask(BaseModel):
 
 class RoutineTaskGenerationResponse(BaseModel):
     """Response for routine task generation"""
-
     routine: RoutineRead
     days_requested: int
     generated_tasks: list[GeneratedTask]

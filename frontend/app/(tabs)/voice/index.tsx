@@ -17,6 +17,7 @@ import { ReminderCard } from "@/components/voice/ReminderCard";
 import { VoiceInterface } from "@/components/voice/VoiceInterface";
 import { VAPI_CREDENTIALS } from "@/config/vapi-credentials";
 import Vapi from "@vapi-ai/web";
+import { missionsApi, routinesApi } from "@/services/api";
 
 const { height } = Dimensions.get("window");
 
@@ -36,132 +37,240 @@ export default function VoiceScreen() {
   const processedRoutines = React.useRef(new Set<string>());
   const callStartedAtRef = React.useRef<number | null>(null);
 
-  const handleMissionCreation = React.useCallback((missionData: any) => {
-    if (!missionData || !missionData.title) {
-      console.warn("Invalid mission data:", missionData);
-      return;
-    }
+  // Recent suggestions state (most recent first)
+  const [recentSuggestions, setRecentSuggestions] = useState<
+    {
+      uiId: string; // local UI id we created (e.g., task-1001)
+      backendId?: string; // real backend id if present in tool payload
+      title: string;
+      type: "task" | "project" | "note" | "reminder" | "routine";
+      createdAt: number;
+    }[]
+  >([]);
 
-    const normalize = (s: string | undefined) => (s || "").trim().toLowerCase();
-    const normalizedTitle = normalize(missionData.title);
-    const normalizedType = normalize(missionData.type || "task");
-    const deadline =
-      missionData.personal_deadline || missionData.true_deadline || "";
-    const normalizedDeadline = normalize((deadline as string).slice(0, 10));
-    const bodySnippet = normalize((missionData.body as string) || "").slice(
-      0,
-      50
-    );
-    const missionKey = `${normalizedType}|${normalizedTitle}|${normalizedDeadline}|${bodySnippet}`;
-    if (processedMissions.current.has(missionKey)) {
-      console.log(
-        "⚠️ Duplicate mission detected, skipping:",
-        missionData.title
+  const pushSuggestion = React.useCallback(
+    (s: {
+      uiId: string;
+      backendId?: string;
+      title: string;
+      type: "task" | "project" | "note" | "reminder" | "routine";
+    }) => {
+      setRecentSuggestions((prev) =>
+        [{ ...s, createdAt: Date.now() }, ...prev].slice(0, 10)
       );
-      return;
-    }
-    processedMissions.current.add(missionKey);
+    },
+    []
+  );
 
-    const formatDate = (dateStr: string) => {
-      if (!dateStr) return "No deadline";
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-      });
-    };
+  const removeSuggestion = React.useCallback(
+    async (uiId: string) => {
+      setRecentSuggestions((prev) => prev.filter((s) => s.uiId !== uiId));
 
-    const missionType = missionData.type || "task";
+      // Find removed suggestion to act on corresponding list and backend
+      const removed = recentSuggestions.find((s) => s.uiId === uiId);
+      if (!removed) return;
 
-    if (missionType === "note") {
-      const newNote = {
-        id: `note-${taskIdCounter.current++}`,
-        title: missionData.title,
-        body: missionData.body
-          ? missionData.body.split("\n").filter((line: string) => line.trim())
-          : [],
-      };
-      setNotes((prevNotes) => [newNote, ...prevNotes]);
-    } else if (missionType === "reminder") {
+      // Update UI lists immediately
+      if (removed.type === "routine") {
+        setRoutines((prev) => prev.filter((r) => r.id !== removed.uiId));
+      } else if (removed.type === "note") {
+        setNotes((prev) => prev.filter((n) => n.id !== removed.uiId));
+      } else if (removed.type === "reminder") {
+        setReminders((prev) => prev.filter((r) => r.id !== removed.uiId));
+      } else {
+        // task or project
+        setTasks((prev) => prev.filter((t) => t.id !== removed.uiId));
+      }
+
+      // Attempt backend deletion if we have an id
+      try {
+        if (removed.backendId) {
+          if (removed.type === "routine") {
+            await routinesApi.deleteRoutine(removed.backendId);
+          } else {
+            await missionsApi.deleteMission(removed.backendId);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to delete suggestion on backend", e);
+      }
+    },
+    [recentSuggestions]
+  );
+
+  const handleMissionCreation = React.useCallback(
+    (missionData: any) => {
+      if (!missionData || !missionData.title) {
+        console.warn("Invalid mission data:", missionData);
+        return;
+      }
+
+      const normalize = (s: string | undefined) =>
+        (s || "").trim().toLowerCase();
+      const normalizedTitle = normalize(missionData.title);
+      const normalizedType = normalize(missionData.type || "task");
       const deadline =
-        missionData.personal_deadline || missionData.true_deadline;
-      const reminderDate = deadline ? new Date(deadline) : new Date();
+        missionData.personal_deadline || missionData.true_deadline || "";
+      const normalizedDeadline = normalize((deadline as string).slice(0, 10));
+      const bodySnippet = normalize((missionData.body as string) || "").slice(
+        0,
+        50
+      );
+      const missionKey = `${normalizedType}|${normalizedTitle}|${normalizedDeadline}|${bodySnippet}`;
+      if (processedMissions.current.has(missionKey)) {
+        console.log(
+          "⚠️ Duplicate mission detected, skipping:",
+          missionData.title
+        );
+        return;
+      }
+      processedMissions.current.add(missionKey);
 
-      const newReminder = {
-        id: `reminder-${taskIdCounter.current++}`,
-        title: missionData.title,
-        time: reminderDate.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        }),
-        date: reminderDate.toLocaleDateString("en-US", {
+      const formatDate = (dateStr: string) => {
+        if (!dateStr) return "No deadline";
+        const date = new Date(dateStr);
+        return date.toLocaleDateString("en-US", {
           weekday: "long",
           month: "long",
           day: "numeric",
-        }),
-        enabled: true,
+        });
       };
-      setReminders((prevReminders) => [newReminder, ...prevReminders]);
-    } else {
-      const deadline =
-        missionData.personal_deadline || missionData.true_deadline;
-      const formattedDate = deadline ? formatDate(deadline) : "No deadline";
 
-      const newTask = {
-        id: `task-${taskIdCounter.current++}`,
-        title: missionData.title,
-        date: formattedDate,
-        enabled: true,
-        subtasks: [],
-      };
-      setTasks((prevTasks) => [newTask, ...prevTasks]);
-    }
-  }, []);
+      const missionType = missionData.type || "task";
 
-  const handleRoutineCreation = React.useCallback((routineData: any) => {
-    if (!routineData || !routineData.title) {
-      console.warn("Invalid routine data:", routineData);
-      return;
-    }
+      if (missionType === "note") {
+        const newNote = {
+          id: `note-${taskIdCounter.current++}`,
+          title: missionData.title,
+          body: missionData.body
+            ? missionData.body.split("\n").filter((line: string) => line.trim())
+            : [],
+        };
+        setNotes((prevNotes) => [newNote, ...prevNotes]);
+        pushSuggestion({
+          uiId: newNote.id,
+          backendId: missionData.id,
+          title: missionData.title,
+          type: "note",
+        });
+      } else if (missionType === "reminder") {
+        const deadline =
+          missionData.personal_deadline || missionData.true_deadline;
+        const reminderDate = deadline ? new Date(deadline) : new Date();
 
-    const routineKey = `routine-${routineData.title}-${
-      routineData.created_at || Date.now()
-    }`;
-    if (processedMissions.current.has(routineKey)) {
-      console.log(
-        "⚠️ Duplicate routine detected, skipping:",
-        routineData.title
-      );
-      return;
-    }
-    processedMissions.current.add(routineKey);
+        const newReminder = {
+          id: `reminder-${taskIdCounter.current++}`,
+          title: missionData.title,
+          time: reminderDate.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          date: reminderDate.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          }),
+          enabled: true,
+        };
+        setReminders((prevReminders) => [newReminder, ...prevReminders]);
+        pushSuggestion({
+          uiId: newReminder.id,
+          backendId: missionData.id,
+          title: missionData.title,
+          type: "reminder",
+        });
+      } else {
+        const deadline =
+          missionData.personal_deadline || missionData.true_deadline;
+        const formattedDate = deadline ? formatDate(deadline) : "No deadline";
 
-    let frequency = "Custom schedule";
-    if (routineData.schedule) {
+        const newTask = {
+          id: `task-${taskIdCounter.current++}`,
+          title: missionData.title,
+          date: formattedDate,
+          enabled: true,
+          subtasks: [],
+        };
+        setTasks((prevTasks) => [newTask, ...prevTasks]);
+        pushSuggestion({
+          uiId: newTask.id,
+          backendId: missionData.id,
+          title: missionData.title,
+          type: missionType === "project" ? "project" : "task",
+        });
+      }
+    },
+    [pushSuggestion]
+  );
+
+  const handleRoutineCreation = React.useCallback(
+    (routineData: any) => {
+      if (!routineData || !routineData.title) {
+        console.warn("Invalid routine data:", routineData);
+        return;
+      }
+
+      const normalize = (s: string | undefined) =>
+        (s || "").trim().toLowerCase();
+      const normalizedTitle = normalize(routineData.title);
+      let daysKey = "";
       try {
         const scheduleData =
           typeof routineData.schedule === "string"
             ? JSON.parse(routineData.schedule)
             : routineData.schedule;
-        if (Array.isArray(scheduleData) && scheduleData.length > 0) {
-          const days = scheduleData.map((s: any) => s.day).join(", ");
-          frequency = days || "Custom schedule";
+        if (Array.isArray(scheduleData)) {
+          const days = scheduleData
+            .map((s: any) => normalize(s.day))
+            .filter(Boolean)
+            .sort()
+            .join(",");
+          daysKey = days;
         }
-      } catch (e) {
-        console.error("Error parsing schedule:", e);
+      } catch {}
+      const routineKey = `routine|${normalizedTitle}|${daysKey}`;
+      if (processedRoutines.current.has(routineKey)) {
+        console.log(
+          "⚠️ Duplicate routine detected, skipping:",
+          routineData.title
+        );
+        return;
       }
-    }
+      processedRoutines.current.add(routineKey);
 
-    const newRoutine = {
-      id: `routine-${taskIdCounter.current++}`,
-      emoji: "⚡",
-      title: routineData.title,
-      frequency,
-      enabled: true,
-    };
-    setRoutines((prevRoutines) => [newRoutine, ...prevRoutines]);
-  }, []);
+      let frequency = "Custom schedule";
+      if (routineData.schedule) {
+        try {
+          const scheduleData =
+            typeof routineData.schedule === "string"
+              ? JSON.parse(routineData.schedule)
+              : routineData.schedule;
+          if (Array.isArray(scheduleData) && scheduleData.length > 0) {
+            const days = scheduleData.map((s: any) => s.day).join(", ");
+            frequency = days || "Custom schedule";
+          }
+        } catch (e) {
+          console.error("Error parsing schedule:", e);
+        }
+      }
+
+      const newRoutine = {
+        id: `routine-${taskIdCounter.current++}`,
+        emoji: "⚡",
+        title: routineData.title,
+        frequency,
+        enabled: true,
+      };
+      setRoutines((prevRoutines) => [newRoutine, ...prevRoutines]);
+      pushSuggestion({
+        uiId: newRoutine.id,
+        backendId: routineData.id,
+        title: routineData.title,
+        type: "routine",
+      });
+    },
+    [pushSuggestion]
+  );
 
   // Initialize VAPI (Web SDK) and route tool outputs into UI
   React.useEffect(() => {
@@ -170,7 +279,11 @@ export default function VoiceScreen() {
     const vapi = new Vapi(VAPI_CREDENTIALS.PUBLIC_KEY);
     vapiRef.current = vapi;
 
-    const handleCallStart = () => setIsConnected(true);
+    const handleCallStart = () => {
+      setIsConnected(true);
+      callStartedAtRef.current = Date.now();
+      processedMessageIds.current.clear();
+    };
     const handleCallEnd = () => {
       setIsConnected(false);
       setIsPaused(false);
@@ -211,7 +324,7 @@ export default function VoiceScreen() {
         }
       }
 
-      // Extract missions/routines from any message shape
+      // Extract missions/routines from tool result payloads only
       const extractDataFromMessage = (
         obj: any
       ): { missions: any[]; routines: any[] } => {
@@ -238,7 +351,21 @@ export default function VoiceScreen() {
       };
 
       if (!message?.type?.includes("transcript")) {
-        const { missions, routines } = extractDataFromMessage(message);
+        const containers: any[] = [];
+        if (Array.isArray(message?.toolCallResults))
+          containers.push(...message.toolCallResults);
+        if (message?.toolCallResult) containers.push(message.toolCallResult);
+        if (Array.isArray(message?.results))
+          containers.push(...message.results);
+        if (message?.result) containers.push(message.result);
+
+        let missions: any[] = [];
+        let routines: any[] = [];
+        containers.forEach((c) => {
+          const d = extractDataFromMessage(c);
+          missions = missions.concat(d.missions);
+          routines = routines.concat(d.routines);
+        });
         if (
           (missions.length > 0 || routines.length > 0) &&
           !processedMessageIds.current.has(messageId)
@@ -386,69 +513,11 @@ export default function VoiceScreen() {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" />
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar />
+      <SafeAreaView style={styles.container} edges={["top"]} className="mt-15">
         <View style={styles.header}>
           <Text style={styles.title}>Neuri Voice</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity
-              onPress={() => {
-                setTasks([]);
-                setRoutines([]);
-                setNotes([]);
-                setReminders([]);
-                setToolResponses([]);
-                processedMessageIds.current.clear();
-                processedMissions.current.clear();
-              }}
-              style={[styles.debugButton, { backgroundColor: "#FF6B6B" }]}
-            >
-              <Text style={styles.debugButtonText}>🧹 Clear</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                // Test task
-                handleMissionCreation({
-                  title: "Test Task",
-                  type: "task",
-                  personal_deadline: new Date(
-                    Date.now() + 24 * 60 * 60 * 1000
-                  ).toISOString(),
-                });
-                // Test note
-                setTimeout(() => {
-                  handleMissionCreation({
-                    title: "Test Note",
-                    type: "note",
-                    body: "Line 1\nLine 2\nLine 3",
-                  });
-                }, 100);
-                // Test reminder
-                setTimeout(() => {
-                  handleMissionCreation({
-                    title: "Test Reminder",
-                    type: "reminder",
-                    personal_deadline: new Date(
-                      Date.now() + 2 * 60 * 60 * 1000
-                    ).toISOString(),
-                  });
-                }, 200);
-                // Test routine
-                setTimeout(() => {
-                  handleRoutineCreation({
-                    title: "Test Routine",
-                    schedule: [
-                      { day: "Monday", time: "9:00 AM" },
-                      { day: "Friday", time: "9:00 AM" },
-                    ],
-                  });
-                }, 300);
-              }}
-              style={styles.debugButton}
-            >
-              <Text style={styles.debugButtonText}>🧪 Test All</Text>
-            </TouchableOpacity>
-          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}></View>
         </View>
 
         <ScrollView
@@ -456,6 +525,24 @@ export default function VoiceScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {recentSuggestions.length > 0 && (
+            <View style={styles.suggestionSection}>
+              <Text style={styles.sectionTitle}>Recent suggestions</Text>
+              {recentSuggestions.map((s) => (
+                <View key={s.uiId} style={styles.suggestionRow}>
+                  <Text style={styles.suggestionText}>
+                    {s.type === "routine" ? "Routine" : s.type}: {s.title}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => removeSuggestion(s.uiId)}
+                    style={styles.removeButton}
+                  >
+                    <Text style={styles.removeButtonText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
           {toolResponses.length > 0 && (
             <View style={styles.debugSection}>
               <Text style={styles.debugTitle}>
@@ -637,6 +724,38 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  suggestionSection: {
+    marginBottom: 24,
+    padding: 12,
+    backgroundColor: "#F8F8FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E6E6FA",
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: "#2C2438",
+    fontFamily: "Montserrat_500Medium",
+    flex: 1,
+    paddingRight: 12,
+  },
+  removeButton: {
+    backgroundColor: "#FF6B6B",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  removeButtonText: {
+    color: "#FFFFFF",
+    fontFamily: "Montserrat_600SemiBold",
+    fontSize: 12,
   },
   section: {
     marginBottom: 24,
