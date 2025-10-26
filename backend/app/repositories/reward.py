@@ -18,7 +18,8 @@ class RewardRepository(BaseRepository[Reward, RewardCreate, RewardUpdate]):
 
     async def get_by_user(self, session: AsyncSession, user_id: UUID) -> Reward | None:
         stmt = select(Reward).where(Reward.user_id == user_id)
-        return await self.get(session, stmt)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_reward_by_id(self, session: AsyncSession, reward_id: UUID) -> Reward:
         stmt = select(Reward).filter_by(id=reward_id)
@@ -58,8 +59,11 @@ class RewardRepository(BaseRepository[Reward, RewardCreate, RewardUpdate]):
     async def add_points_for_mission(self, session: AsyncSession, user_id: UUID, mission_type: str, is_subtask: bool = False) -> Reward:
         """Add points based on mission type and size"""
         reward = await self.get_by_user(session, user_id)
+        
+        # Create reward if it doesn't exist
         if not reward:
-            raise ValueError(f"No reward found for user {user_id}")
+            reward_data = RewardCreate(user_id=user_id)
+            reward = await self.create(session, reward_data)
         
         # Point system based on business logic
         if is_subtask:

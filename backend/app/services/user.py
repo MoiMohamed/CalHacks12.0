@@ -26,7 +26,7 @@ class UserService:
     async def create_user(self, session: AsyncSession, data: UserCreate) -> UserRead:
         """Create a new user"""
         user = await self.user_repo.create(session, data)
-        reward_data = RewardCreate(user_id=user.id)
+        reward_data = RewardCreate(user_id=user.id, points=0, last_reward_at=None, last_reward_type=None, last_reward_amount=0, last_reward_currency=None, last_reward_currency_amount=0)
         await self.reward_repo.create(session, reward_data)
         return UserRead.model_validate(user)
 

@@ -6,17 +6,37 @@ from app.models.neuri.schema import RoutineCreate, RoutineRead, RoutineUpdate, R
 from app.repositories.base import AsyncSession, get_session
 from app.response_models import SuccessResponse, SuccessListResponse
 from app.services.routine import RoutineService
+from app.models.neuri.request import GenerateRoutineTasksRequest, CreateRoutineRequest
 
 router = APIRouter(prefix="/routines", tags=["Routines"])
 
 
 @router.post("/", response_model=SuccessResponse[RoutineRead])
 async def create_routine(
+    request: CreateRoutineRequest,
+    session: AsyncSession = Depends(get_session),
+    routine_service: RoutineService = Depends(),
+) -> SuccessResponse[RoutineRead]:
+    """Create a new routine - Vapi apiRequest compatible"""
+    from uuid import UUID
+    HARDCODED_USER_ID = "ac22a45c-fb5b-4027-9e41-36d6b9abaebb"
+    routine_data = RoutineCreate(
+        title=request.title,
+        user_id=UUID(HARDCODED_USER_ID),
+        category_id=UUID(request.category_id) if request.category_id else None,
+        schedule=request.schedule
+    )
+    routine = await routine_service.create_routine(session, routine_data)
+    return SuccessResponse(data=routine)
+
+
+@router.post("/legacy", response_model=SuccessResponse[RoutineRead])
+async def create_routine_legacy(
     routine_data: RoutineCreate,
     session: AsyncSession = Depends(get_session),
     routine_service: RoutineService = Depends(),
 ) -> SuccessResponse[RoutineRead]:
-    """Create a new routine"""
+    """Create a new routine (legacy endpoint)"""
     routine = await routine_service.create_routine(session, routine_data)
     return SuccessResponse(data=routine)
 
@@ -99,6 +119,18 @@ async def generate_routine_tasks(
 ) -> SuccessResponse[RoutineTaskGenerationResponse]:
     """Generate tasks for a routine over N days"""
     result = await routine_service.generate_tasks_for_days(session, routine_id, days)
+    return SuccessResponse(data=result)
+
+
+@router.post("/generate-tasks", response_model=SuccessResponse[RoutineTaskGenerationResponse])
+async def generate_routine_tasks_body(
+    request: GenerateRoutineTasksRequest,
+    session: AsyncSession = Depends(get_session),
+    routine_service: RoutineService = Depends(),
+) -> SuccessResponse[RoutineTaskGenerationResponse]:
+    """Generate tasks for a routine - Vapi apiRequest compatible"""
+    routine_id = UUID(request.routine_id)
+    result = await routine_service.generate_tasks_for_days(session, routine_id, request.days)
     return SuccessResponse(data=result)
 
 

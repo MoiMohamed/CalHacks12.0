@@ -6,6 +6,7 @@ from app.models.neuri.schema import UserCreate, UserRead, UserUpdate, UserProfil
 from app.repositories.base import AsyncSession, get_session
 from app.response_models import SuccessResponse, SuccessListResponse
 from app.services.user import UserService
+from app.models.neuri.request import UpdateUserRequest
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -29,6 +30,22 @@ async def list_users(
     """List all users"""
     users = await user_service.list_users(session)
     return SuccessListResponse(data=users)
+
+
+# Put /body BEFORE /{user_id} so FastAPI doesn't try to parse "body" as a UUID
+@router.put("/body", response_model=SuccessResponse[UserRead])
+async def update_user_body(
+    request: UpdateUserRequest,
+    session: AsyncSession = Depends(get_session),
+    user_service: UserService = Depends(),
+) -> SuccessResponse[UserRead]:
+    """Update user profile - Vapi apiRequest compatible"""
+    # Hardcoded user_id for now since our tools have it in the URL
+    HARDCODED_USER_ID = "ac22a45c-fb5b-4027-9e41-36d6b9abaebb"
+    user_uuid = UUID(HARDCODED_USER_ID)
+    user_data = UserUpdate(**request.model_dump(exclude_unset=True))
+    user = await user_service.update_user(session, user_uuid, user_data)
+    return SuccessResponse(data=user)
 
 
 @router.get("/{user_id}", response_model=SuccessResponse[UserRead])

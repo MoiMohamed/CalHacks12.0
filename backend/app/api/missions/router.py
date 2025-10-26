@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, status
 
@@ -6,8 +7,22 @@ from app.models.neuri.schema import MissionCreate, MissionRead, MissionUpdate, M
 from app.repositories.base import AsyncSession, get_session
 from app.response_models import SuccessResponse, SuccessListResponse
 from app.services.mission import MissionService
+from app.models.neuri.request import UpdateMissionRequest, CompleteMissionRequest, BreakDownMissionRequest
 
 router = APIRouter(prefix="/missions", tags=["Missions"])
+
+
+def convert_timezone_aware_to_naive(data: dict) -> dict:
+    """Convert timezone-aware datetimes to naive UTC datetimes for database storage"""
+    from datetime import timezone
+    for key, value in data.items():
+        if isinstance(value, datetime) and value.tzinfo is not None:
+            # Convert to UTC first, then make it naive
+            data[key] = value.astimezone(timezone.utc).replace(tzinfo=None)
+        elif isinstance(value, datetime) and value.tzinfo is None:
+            # If already naive, assume it's UTC
+            data[key] = value
+    return data
 
 
 @router.post("/", response_model=SuccessResponse[MissionRead])
@@ -17,7 +32,10 @@ async def create_mission(
     mission_service: MissionService = Depends(),
 ) -> SuccessResponse[MissionRead]:
     """Create a new mission"""
-    mission = await mission_service.create_mission(session, mission_data)
+    # Convert timezone-aware datetimes to naive for database
+    mission_dict = convert_timezone_aware_to_naive(mission_data.model_dump())
+    mission_create = MissionCreate(**mission_dict)
+    mission = await mission_service.create_mission(session, mission_create)
     return SuccessResponse(data=mission)
 
 
@@ -212,3 +230,47 @@ async def delete_mission(
 ) -> None:
     """Delete mission"""
     await mission_service.delete_mission(session, mission_id)
+
+
+# New endpoints for Vapi apiRequest tools (accept mission_id in body)
+@router.put("/", response_model=SuccessResponse[MissionRead])
+async def update_mission_body(
+    request: UpdateMissionRequest,
+    session: AsyncSession = Depends(get_session),
+    mission_service: MissionService = Depends(),
+) -> SuccessResponse[MissionRead]:
+    """Update mission - Vapi apiRequest compatible"""
+    mission_id = UUID(request.mission_id)
+    # Create MissionUpdate without mission_id, excluding unset fields (None values)
+    update_dict = {k: v for k, v in request.model_dump(exclude={'mission_id'}).items() if v is not None}
+    
+    # Convert timezone-aware datetimes to naive datetimes
+    update_dict = convert_timezone_aware_to_naive(update_dict)
+    
+    update_data = MissionUpdate(**update_dict)
+    mission = await mission_service.update_mission(session, mission_id, update_data)
+    return SuccessResponse(data=mission)
+
+
+@router.patch("/complete", response_model=SuccessResponse[MissionRead])
+async def complete_mission_body(
+    request: CompleteMissionRequest,
+    session: AsyncSession = Depends(get_session),
+    mission_service: MissionService = Depends(),
+) -> SuccessResponse[MissionRead]:
+    """Mark mission as complete - Vapi apiRequest compatible"""
+    mission_id = UUID(request.mission_id)
+    mission = await mission_service.complete_mission(session, mission_id)
+    return SuccessResponse(data=mission)
+
+
+@router.post("/break-down", response_model=SuccessListResponse[MissionRead])
+async def break_down_mission_body(
+    request: BreakDownMissionRequest,
+    session: AsyncSession = Depends(get_session),
+    mission_service: MissionService = Depends(),
+) -> SuccessListResponse[MissionRead]:
+    """Break down a heavy mission - Vapi apiRequest compatible"""
+    mission_id = UUID(request.mission_id)
+    subtasks = await mission_service.break_down_mission(session, mission_id, request.subtask_titles)
+    return SuccessListResponse(data=subtasks)
