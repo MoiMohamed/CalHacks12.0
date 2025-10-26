@@ -1,32 +1,10 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View } from "react-native";
+import ScheduleComponent from "../../components/ScheduleComponent";
 
 export default function ScheduleScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Schedule</Text>
-      <Text style={styles.subtitle}>
-        Your routine schedule will appear here
-      </Text>
+    <View style={{ flex: 1 }}>
+      <ScheduleComponent />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-  },
-});

@@ -15,6 +15,7 @@ import {
   Montserrat_700Bold,
 } from "@expo-google-fonts/montserrat";
 import {
+  MontserratAlternates_400Regular,
   MontserratAlternates_500Medium,
   MontserratAlternates_600SemiBold,
   MontserratAlternates_700Bold,
@@ -60,6 +61,7 @@ export default function RootLayout() {
     Montserrat_500Medium,
     Montserrat_600SemiBold,
     Montserrat_700Bold,
+    MontserratAlternates_400Regular,
     MontserratAlternates_500Medium,
     MontserratAlternates_600SemiBold,
     MontserratAlternates_700Bold,
