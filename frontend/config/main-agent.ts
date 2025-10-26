@@ -165,6 +165,15 @@ export const mainAgent = {
             description:
               "When this mission needs to be completed (YYYY-MM-DD format).",
           },
+          parentProjectId: {
+            type: "string",
+            description: "The ID of the parent project if this is a subtask.",
+          },
+          parentRoutineId: {
+            type: "string",
+            description:
+              "The ID of the parent routine if this task is generated from a routine.",
+          },
         },
         required: [
           "title",
@@ -184,6 +193,8 @@ export const mainAgent = {
           priority: "{priority}",
           mission_type: "{mission_type}",
           due_date: "{due_date}",
+          parentProjectId: "{parentProjectId}",
+          parentRoutineId: "{parentRoutineId}",
         },
       },
     },
