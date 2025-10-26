@@ -11,7 +11,7 @@ const getApiUrl = () => {
   }
 
   // Default to your cloudflare tunnel
-  return "https://overview-pas-product-noticed.trycloudflare.com";
+  return "https://calgary-convenience-submission-surgery.trycloudflare.com";
 };
 
 export const apiURL = (
@@ -35,7 +35,11 @@ interface AxiosRequestConfigPatch extends Omit<AxiosRequestConfig, "method"> {
 
 // Custom API Error class
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public data?: any) {
+  constructor(
+    message: string,
+    public status: number,
+    public data?: any
+  ) {
     super(message);
     this.name = "ApiError";
   }

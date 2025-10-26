@@ -41,20 +41,50 @@ class RoutineRepository(BaseRepository[Routine, RoutineCreate, RoutineUpdate]):
         if not routine.schedule:
             return []
         
-        # Parse the schedule JSON
+        # Parse the schedule JSON and normalize items to dicts: { day, time }
         try:
-            schedule_items = json.loads(routine.schedule)
+            parsed = json.loads(routine.schedule)
         except (json.JSONDecodeError, TypeError):
             return []
+
+        # Ensure we have a list of items
+        if isinstance(parsed, dict):
+            schedule_items_raw = [parsed]
+        elif isinstance(parsed, list):
+            schedule_items_raw = parsed
+        elif isinstance(parsed, str):
+            # A single day like "Monday" or a comma-separated list
+            parts = [p.strip() for p in parsed.split(",") if p and p.strip()]
+            schedule_items_raw = parts if parts else [parsed]
+        else:
+            return []
+
+        # Normalize each item to a dict with keys: day, time
+        schedule_items: list[dict] = []
+        for item in schedule_items_raw:
+            if isinstance(item, dict):
+                schedule_items.append({
+                    'day': item.get('day', ''),
+                    'time': item.get('time', '09:00'),
+                })
+            elif isinstance(item, str):
+                schedule_items.append({'day': item, 'time': '09:00'})
+            else:
+                # Unsupported item type; skip
+                continue
         
         generated_tasks = []
         start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Day mapping
         day_mapping = {
-            'MON': 0, 'TUES': 1, 'WED': 2, 'THURS': 3, 'FRI': 4, 'SAT': 5, 'SUN': 6,
-            'MONDAY': 0, 'TUESDAY': 1, 'WEDNESDAY': 2, 'THURSDAY': 3, 
-            'FRIDAY': 4, 'SATURDAY': 5, 'SUNDAY': 6
+            'MON': 0, 'MONDAY': 0,
+            'TUE': 1, 'TUES': 1, 'TUESDAY': 1,
+            'WED': 2, 'WEDS': 2, 'WEDNESDAY': 2,
+            'THU': 3, 'THUR': 3, 'THURS': 3, 'THURSDAY': 3,
+            'FRI': 4, 'FRIDAY': 4,
+            'SAT': 5, 'SATURDAY': 5,
+            'SUN': 6, 'SUNDAY': 6,
         }
         
         # Generate tasks for each day in the requested period
@@ -64,8 +94,17 @@ class RoutineRepository(BaseRepository[Routine, RoutineCreate, RoutineUpdate]):
             
             # Check if any schedule item matches this day
             for schedule_item in schedule_items:
-                day_str = schedule_item.get('day', '').upper()
-                time_str = schedule_item.get('time', '09:00')
+                raw_day = schedule_item.get('day', '') if isinstance(schedule_item, dict) else str(schedule_item)
+                raw_time = schedule_item.get('time', '09:00') if isinstance(schedule_item, dict) else '09:00'
+
+                day_str = str(raw_day).strip().upper()
+                time_str = str(raw_time).strip() or '09:00'
+
+                # Try short forms if full name not in mapping
+                if day_str not in day_mapping and len(day_str) >= 3:
+                    short = day_str[:3]
+                    if short in day_mapping:
+                        day_str = short
                 
                 if day_str not in day_mapping:
                     continue
