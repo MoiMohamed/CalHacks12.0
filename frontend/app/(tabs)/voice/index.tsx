@@ -11,6 +11,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { RoutineCard } from "@/components/voice/RoutineCard";
 import { NoteCard } from "@/components/voice/NoteCard";
+import { TaskCard } from "@/components/voice/TaskCard";
+import { ReminderCard } from "@/components/voice/ReminderCard";
 import { VoiceInterface } from "@/components/voice/VoiceInterface";
 
 const { height } = Dimensions.get("window");
@@ -27,31 +29,24 @@ export default function VoiceScreen() {
   const [routines, setRoutines] = useState([
     {
       id: "1",
-      title: "Cleaning the room",
+      emoji: "🏠",
+      title: "Room cleaning",
+      frequency: "Every Monday",
       enabled: true,
-      tasks: [
-        {
-          id: "1-1",
-          emoji: "📦",
-          name: "Organizing my desk",
-          day: "Monday",
-          completed: false,
-        },
-        {
-          id: "1-2",
-          emoji: "🧹",
-          name: "Wipe the floor",
-          day: "Monday",
-          completed: false,
-        },
-        {
-          id: "1-3",
-          emoji: "👕",
-          name: "Wash clothes",
-          day: "Monday",
-          completed: false,
-        },
-      ],
+    },
+    {
+      id: "2",
+      emoji: "🏃",
+      title: "Morning workout",
+      frequency: "Daily",
+      enabled: true,
+    },
+    {
+      id: "3",
+      emoji: "📚",
+      title: "Study session",
+      frequency: "Monday, Wednesday, Friday",
+      enabled: true,
     },
   ]);
 
@@ -67,6 +62,37 @@ export default function VoiceScreen() {
     },
   ];
 
+  const [tasks, setTasks] = useState([
+    {
+      id: "1",
+      title: "Website Redesign Project",
+      date: "Monday, December 30",
+      enabled: false,
+      subtasks: [
+        { id: "1-1", name: "Create wireframes", completed: true },
+        { id: "1-2", name: "Design mockups", completed: false },
+        { id: "1-3", name: "Implement responsive layout", completed: false },
+        { id: "1-4", name: "Add animations and transitions", completed: false },
+      ],
+    },
+    {
+      id: "2",
+      title: "Finish CS110 Assignment #P1",
+      date: "Monday, December 25",
+      enabled: false,
+    },
+  ]);
+
+  const [reminders, setReminders] = useState([
+    {
+      id: "1",
+      title: "Squid Games",
+      time: "4:00 PM",
+      date: "Thursday, December 26",
+      enabled: false,
+    },
+  ]);
+
   // Handler for toggling entire routine on/off
   const handleToggleRoutine = (routineId: string, enabled: boolean) => {
     setRoutines((prev) =>
@@ -75,40 +101,6 @@ export default function VoiceScreen() {
       )
     );
     console.log(`Routine ${routineId} ${enabled ? "enabled" : "disabled"}`);
-  };
-
-  // Handler for toggling individual task completion
-  const handleTaskToggle = (routineId: string, taskId: string) => {
-    setRoutines((prev) =>
-      prev.map((routine) =>
-        routine.id === routineId
-          ? {
-              ...routine,
-              tasks: routine.tasks.map((task) =>
-                task.id === taskId
-                  ? { ...task, completed: !task.completed }
-                  : task
-              ),
-            }
-          : routine
-      )
-    );
-    console.log(`Task ${taskId} toggled in routine ${routineId}`);
-  };
-
-  // Handler for when a task is removed after animation
-  const handleTaskRemoved = (routineId: string, taskId: string) => {
-    setRoutines((prev) =>
-      prev.map((routine) =>
-        routine.id === routineId
-          ? {
-              ...routine,
-              tasks: routine.tasks.filter((task) => task.id !== taskId),
-            }
-          : routine
-      )
-    );
-    console.log(`Task ${taskId} removed from routine ${routineId}`);
   };
 
   return (
@@ -124,25 +116,44 @@ export default function VoiceScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Tasks Section */}
+          {tasks.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Setting tasks</Text>
+              {tasks.map((task, index) => (
+                <TaskCard
+                  key={task.id}
+                  title={task.title}
+                  date={task.date}
+                  subtasks={task.subtasks}
+                  colorIndex={index}
+                  enabled={task.enabled}
+                  onToggle={(enabled) =>
+                    setTasks((prev) =>
+                      prev.map((t) =>
+                        t.id === task.id ? { ...t, enabled } : t
+                      )
+                    )
+                  }
+                />
+              ))}
+            </View>
+          )}
+
           {/* Routines Section */}
           {routines.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Setting routines</Text>
+              <Text style={styles.sectionTitle}>Setting habits</Text>
               {routines.map((routine, index) => (
                 <RoutineCard
                   key={routine.id}
+                  emoji={routine.emoji}
                   title={routine.title}
-                  tasks={routine.tasks}
+                  frequency={routine.frequency}
                   colorIndex={index}
                   enabled={routine.enabled}
                   onToggleRoutine={(enabled) =>
                     handleToggleRoutine(routine.id, enabled)
-                  }
-                  onTaskToggle={(taskId) =>
-                    handleTaskToggle(routine.id, taskId)
-                  }
-                  onTaskRemoved={(taskId) =>
-                    handleTaskRemoved(routine.id, taskId)
                   }
                 />
               ))}
@@ -159,6 +170,30 @@ export default function VoiceScreen() {
                   title={note.title}
                   body={note.body}
                   colorIndex={index}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Reminders Section */}
+          {reminders.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Setting reminders</Text>
+              {reminders.map((reminder, index) => (
+                <ReminderCard
+                  key={reminder.id}
+                  title={reminder.title}
+                  time={reminder.time}
+                  date={reminder.date}
+                  colorIndex={index}
+                  enabled={reminder.enabled}
+                  onToggle={(enabled) =>
+                    setReminders((prev) =>
+                      prev.map((r) =>
+                        r.id === reminder.id ? { ...r, enabled } : r
+                      )
+                    )
+                  }
                 />
               ))}
             </View>

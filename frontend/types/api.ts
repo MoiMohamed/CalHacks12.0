@@ -133,6 +133,7 @@ export interface Routine extends BaseEntity {
   category_id?: string;
   title: string;
   schedule?: string; // JSON string
+  frequency?: string; // Human-readable frequency like "Monday, Wednesday" or "Daily"
 }
 
 export interface RoutineCreate {

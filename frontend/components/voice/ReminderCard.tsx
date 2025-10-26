@@ -6,42 +6,42 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-interface RoutineCardProps {
-  emoji?: string;
+interface ReminderCardProps {
   title: string;
-  frequency?: string;
+  time?: string;
+  date?: string;
   colorIndex?: number;
   enabled?: boolean;
-  onToggleRoutine?: (enabled: boolean) => void;
+  onToggle?: (enabled: boolean) => void;
 }
 
-// Predefined color palettes for routine cards
-const ROUTINE_COLORS = {
-  background: ["#553160"],
+// Predefined color palettes for reminder cards
+const REMINDER_COLORS = {
+  background: ["#6B5E7B"],
 };
 
-export const RoutineCard: React.FC<RoutineCardProps> = ({
-  emoji,
+export const ReminderCard: React.FC<ReminderCardProps> = ({
   title,
-  frequency,
+  time,
+  date,
   colorIndex = 0,
   enabled = true,
-  onToggleRoutine,
+  onToggle,
 }) => {
   const [isEnabled, setIsEnabled] = useState(enabled);
   const togglePosition = useSharedValue(enabled ? 1 : 0);
 
   const backgroundColor =
-    ROUTINE_COLORS.background[colorIndex % ROUTINE_COLORS.background.length];
+    REMINDER_COLORS.background[colorIndex % REMINDER_COLORS.background.length];
 
-  const handleToggleRoutine = () => {
+  const handleToggle = () => {
     const newState = !isEnabled;
     setIsEnabled(newState);
     togglePosition.value = withSpring(newState ? 1 : 0, {
       damping: 15,
       stiffness: 150,
     });
-    onToggleRoutine?.(newState);
+    onToggle?.(newState);
   };
 
   const animatedToggleStyle = useAnimatedStyle(() => {
@@ -62,17 +62,13 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor }]}>
-      <View style={styles.header}>
-        {emoji && (
-          <View style={styles.emojiCircle}>
-            <Text style={styles.emoji}>{emoji}</Text>
-          </View>
-        )}
+      <View style={styles.content}>
         <View style={styles.textContainer}>
           <Text style={styles.title}>{title}</Text>
-          {frequency && <Text style={styles.frequency}>{frequency}</Text>}
+          {time && <Text style={styles.time}>{time}</Text>}
+          {date && <Text style={styles.date}>{date}</Text>}
         </View>
-        <Pressable onPress={handleToggleRoutine} style={styles.toggleContainer}>
+        <Pressable onPress={handleToggle} style={styles.toggleContainer}>
           <Animated.View style={[styles.toggle, animatedToggleStyle]}>
             <Animated.View style={[styles.toggleKnob, animatedKnobStyle]} />
           </Animated.View>
@@ -91,25 +87,10 @@ const styles = StyleSheet.create({
     borderWidth: 0.288,
     borderColor: "#FFFFFF",
   },
-  header: {
+  content: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  emojiCircle: {
-    width: 21.88,
-    height: 21.88,
-    borderRadius: 10.94,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 6.08,
-    flexShrink: 0,
-  },
-  emoji: {
-    fontSize: 10.94,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "400",
   },
   textContainer: {
     flex: 1,
@@ -120,12 +101,18 @@ const styles = StyleSheet.create({
     color: "#EDEBFF",
     lineHeight: 19,
     letterSpacing: 0.432,
+    marginBottom: 4,
   },
-  frequency: {
-    fontSize: 11,
+  time: {
+    fontSize: 12,
+    fontFamily: "Montserrat_600SemiBold",
+    color: "#FFFFFF",
+    marginBottom: 2,
+  },
+  date: {
+    fontSize: 12,
     fontFamily: "Montserrat_400Regular",
-    color: "rgba(237, 235, 255, 0.7)",
-    marginTop: 2,
+    color: "rgba(255, 255, 255, 0.7)",
   },
   toggleContainer: {
     marginLeft: 12,

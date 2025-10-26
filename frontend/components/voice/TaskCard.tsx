@@ -6,42 +6,48 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-interface RoutineCardProps {
-  emoji?: string;
-  title: string;
-  frequency?: string;
-  colorIndex?: number;
-  enabled?: boolean;
-  onToggleRoutine?: (enabled: boolean) => void;
+interface SubTask {
+  id: string;
+  name: string;
+  completed: boolean;
 }
 
-// Predefined color palettes for routine cards
-const ROUTINE_COLORS = {
-  background: ["#553160"],
+interface TaskCardProps {
+  title: string;
+  date?: string;
+  subtasks?: SubTask[];
+  colorIndex?: number;
+  enabled?: boolean;
+  onToggle?: (enabled: boolean) => void;
+}
+
+// Predefined color palettes for task cards
+const TASK_COLORS = {
+  background: ["#5F7E63"],
 };
 
-export const RoutineCard: React.FC<RoutineCardProps> = ({
-  emoji,
+export const TaskCard: React.FC<TaskCardProps> = ({
   title,
-  frequency,
+  date,
+  subtasks = [],
   colorIndex = 0,
   enabled = true,
-  onToggleRoutine,
+  onToggle,
 }) => {
   const [isEnabled, setIsEnabled] = useState(enabled);
   const togglePosition = useSharedValue(enabled ? 1 : 0);
 
   const backgroundColor =
-    ROUTINE_COLORS.background[colorIndex % ROUTINE_COLORS.background.length];
+    TASK_COLORS.background[colorIndex % TASK_COLORS.background.length];
 
-  const handleToggleRoutine = () => {
+  const handleToggle = () => {
     const newState = !isEnabled;
     setIsEnabled(newState);
     togglePosition.value = withSpring(newState ? 1 : 0, {
       damping: 15,
       stiffness: 150,
     });
-    onToggleRoutine?.(newState);
+    onToggle?.(newState);
   };
 
   const animatedToggleStyle = useAnimatedStyle(() => {
@@ -62,22 +68,37 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor }]}>
-      <View style={styles.header}>
-        {emoji && (
-          <View style={styles.emojiCircle}>
-            <Text style={styles.emoji}>{emoji}</Text>
-          </View>
-        )}
+      <View style={styles.content}>
         <View style={styles.textContainer}>
           <Text style={styles.title}>{title}</Text>
-          {frequency && <Text style={styles.frequency}>{frequency}</Text>}
+          {date && <Text style={styles.date}>{date}</Text>}
         </View>
-        <Pressable onPress={handleToggleRoutine} style={styles.toggleContainer}>
+        <Pressable onPress={handleToggle} style={styles.toggleContainer}>
           <Animated.View style={[styles.toggle, animatedToggleStyle]}>
             <Animated.View style={[styles.toggleKnob, animatedKnobStyle]} />
           </Animated.View>
         </Pressable>
       </View>
+
+      {subtasks.length > 0 && (
+        <View style={styles.subtasksContainer}>
+          {subtasks.map((subtask, index) => (
+            <View key={subtask.id} style={styles.subtaskRow}>
+              <View style={styles.subtaskCheck}>
+                {subtask.completed && <View style={styles.subtaskCheckmark} />}
+              </View>
+              <Text
+                style={[
+                  styles.subtaskName,
+                  subtask.completed && styles.subtaskNameCompleted,
+                ]}
+              >
+                {subtask.name}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -91,25 +112,10 @@ const styles = StyleSheet.create({
     borderWidth: 0.288,
     borderColor: "#FFFFFF",
   },
-  header: {
+  content: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  emojiCircle: {
-    width: 21.88,
-    height: 21.88,
-    borderRadius: 10.94,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 6.08,
-    flexShrink: 0,
-  },
-  emoji: {
-    fontSize: 10.94,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "400",
   },
   textContainer: {
     flex: 1,
@@ -120,12 +126,12 @@ const styles = StyleSheet.create({
     color: "#EDEBFF",
     lineHeight: 19,
     letterSpacing: 0.432,
+    marginBottom: 4,
   },
-  frequency: {
-    fontSize: 11,
+  date: {
+    fontSize: 12,
     fontFamily: "Montserrat_400Regular",
-    color: "rgba(237, 235, 255, 0.7)",
-    marginTop: 2,
+    color: "rgba(255, 255, 255, 0.7)",
   },
   toggleContainer: {
     marginLeft: 12,
@@ -144,5 +150,44 @@ const styles = StyleSheet.create({
     height: 16.148,
     borderRadius: 8.074,
     backgroundColor: "#5E3967",
+  },
+  subtasksContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 0.288,
+    borderTopColor: "rgba(255, 255, 255, 0.2)",
+  },
+  subtaskRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  subtaskCheck: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    marginRight: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  subtaskCheckmark: {
+    width: 8,
+    height: 4,
+    borderLeftWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: "#FFFFFF",
+    transform: [{ rotate: "-45deg" }],
+  },
+  subtaskName: {
+    fontSize: 12,
+    fontFamily: "Montserrat_400Regular",
+    color: "#FFFFFF",
+    flex: 1,
+  },
+  subtaskNameCompleted: {
+    opacity: 0.5,
+    textDecorationLine: "line-through",
   },
 });
