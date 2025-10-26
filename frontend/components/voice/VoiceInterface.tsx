@@ -162,11 +162,16 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   // Min 260px, max 300px for most phones
   const interfaceHeight = Math.min(Math.max(height * 0.35, 260), 300);
 
-  // Calculate glow position so it intersects sides at 1/5 of container height from bottom
-  const glowRadius = width * 2; // Circle radius relative to screen width
+  // Calculate glow position with wide ellipse that covers the full width
+  const glowRadiusX = width * 1.1; // Horizontal radius - very wide
+  const glowRadiusY = width * 0.35; // Vertical radius - much shorter for stretched effect
   const targetIntersectionFromBottom = interfaceHeight / 5; // 1/5 from bottom
-  // Position circle so it intersects at the target height from bottom
-  const glowBottom = -(glowRadius - targetIntersectionFromBottom);
+  // Position ellipse so it intersects at the target height from bottom
+  const glowBottom = -(glowRadiusY - targetIntersectionFromBottom);
+
+  // Container dimensions for the ellipse
+  const svgWidth = glowRadiusX * 2;
+  const svgHeight = glowRadiusY * 2;
 
   return (
     <View
@@ -188,17 +193,13 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             styles.glowContainer,
             {
               bottom: glowBottom,
-              width: glowRadius * 2,
-              height: glowRadius * 2,
-              marginLeft: -glowRadius,
+              width: svgWidth,
+              height: svgHeight,
+              marginLeft: -glowRadiusX,
             },
           ]}
         >
-          <Svg
-            height={glowRadius * 2}
-            width={glowRadius * 2}
-            style={styles.glowSvg}
-          >
+          <Svg height={svgHeight} width={svgWidth} style={styles.glowSvg}>
             <Defs>
               <SvgRadialGradient id="purpleGlow" cx="50%" cy="50%">
                 <Stop
@@ -244,10 +245,10 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
               </SvgRadialGradient>
             </Defs>
             <Ellipse
-              cx={glowRadius}
-              cy={glowRadius}
-              rx={glowRadius}
-              ry={glowRadius}
+              cx={glowRadiusX}
+              cy={glowRadiusY}
+              rx={glowRadiusX}
+              ry={glowRadiusY}
               fill="url(#purpleGlow)"
             />
           </Svg>
