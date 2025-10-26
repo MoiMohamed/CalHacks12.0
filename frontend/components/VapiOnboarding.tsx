@@ -11,27 +11,43 @@ import { useCreateUser, useUpdateUser } from "@/hooks/useUsers";
 import { useCreateCategory } from "@/hooks/useCategories";
 import { VAPI_CREDENTIALS } from "@/config/vapi-credentials";
 
-// Import VAPI SDKs based on platform
-let VapiWeb: any = null;
-let VapiNative: any = null;
+// Polyfill for navigator if not available (for React Native/Expo)
+if (typeof navigator === "undefined" || !navigator.userAgent) {
+  // @ts-ignore
+  const userAgentString =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 
-// Only load the SDK for the current platform to avoid conflicts
-if (Platform.OS === "web") {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    VapiWeb = require("@vapi-ai/web").default;
-    console.log("VAPI Web SDK loaded for web platform");
-  } catch (error) {
-    console.log("VAPI Web SDK not available:", error);
+  console.log("Setting up navigator polyfill");
+
+  // @ts-ignore
+  if (!global.navigator) {
+    // @ts-ignore
+    global.navigator = {};
   }
-} else {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    VapiNative = require("@vapi-ai/react-native").default;
-    console.log("VAPI React Native SDK loaded for native platform");
-  } catch (error) {
-    console.log("VAPI React Native SDK not available:", error);
-  }
+
+  // @ts-ignore
+  global.navigator.userAgent = userAgentString;
+  // @ts-ignore
+  global.navigator.platform = "iPhone";
+  // @ts-ignore
+  global.navigator.vendor = "Apple Computer, Inc.";
+  // @ts-ignore
+  global.navigator.language = "en-US";
+  // @ts-ignore
+  global.navigator.languages = ["en-US", "en"];
+
+  console.log("Navigator polyfill complete:", global.navigator.userAgent);
+}
+
+// Import VAPI Web SDK
+let VapiWeb: any = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  VapiWeb = require("@vapi-ai/web").default;
+  console.log("VAPI Web SDK loaded");
+} catch (error) {
+  console.log("VAPI Web SDK not available:", error);
 }
 
 interface VapiOnboardingProps {
@@ -50,16 +66,13 @@ export const VapiOnboarding: React.FC<VapiOnboardingProps> = ({
   const updateUser = useUpdateUser();
   const createCategory = useCreateCategory();
 
-  // Initialize VAPI instance (with fallback)
+  // Initialize VAPI instance
   const vapi = useMemo(() => {
-    if (Platform.OS === "web" && VapiWeb) {
+    if (VapiWeb) {
       console.log("Creating VAPI Web instance");
       return new VapiWeb(VAPI_CREDENTIALS.PUBLIC_KEY);
-    } else if (Platform.OS !== "web" && VapiNative) {
-      console.log("Creating VAPI React Native instance");
-      return new VapiNative(VAPI_CREDENTIALS.PUBLIC_KEY);
     }
-    console.log("No VAPI SDK available for platform:", Platform.OS);
+    console.log("VAPI Web SDK not available");
     return null;
   }, []);
 
@@ -275,13 +288,8 @@ export const VapiOnboarding: React.FC<VapiOnboardingProps> = ({
 
       setMessages((prev) => [...prev, "Connecting to assistant..."]);
 
-      if (Platform.OS === "web") {
-        // Web SDK approach
-        await vapi.start(VAPI_CREDENTIALS.ASSISTANT_ID);
-      } else {
-        // React Native SDK approach
-        await vapi.start(VAPI_CREDENTIALS.ASSISTANT_ID);
-      }
+      // Web SDK approach
+      await vapi.start(VAPI_CREDENTIALS.ASSISTANT_ID);
 
       console.log("VAPI start() completed successfully");
     } catch (error) {

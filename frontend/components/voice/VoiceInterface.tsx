@@ -1,22 +1,14 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   Dimensions,
-  Platform,
   Animated,
+  Image,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, {
-  Defs,
-  RadialGradient as SvgRadialGradient,
-  Stop,
-  Ellipse,
-} from "react-native-svg";
 
 const { width, height } = Dimensions.get("window");
 
@@ -30,121 +22,107 @@ interface VoiceInterfaceProps {
   onEndPress?: () => void;
 }
 
-// SiriWave component wrapper for React Native
-const SiriWave: React.FC<{ isActive: boolean }> = ({ isActive }) => {
-  const canvasRef = useRef<any>(null);
-  const [siriwave, setSiriwave] = useState<any>(null);
+// Custom sound wave component that matches the design
+const SoundWave: React.FC<{ isActive: boolean }> = ({ isActive }) => {
+  const barCount = 120;
+  const animValues = useRef(
+    Array.from({ length: barCount }, () => new Animated.Value(0.1))
+  ).current;
 
   useEffect(() => {
-    if (Platform.OS === "web" && canvasRef.current) {
-      // Dynamically import siriwave only on web
-      import("siriwave").then((SiriWaveModule) => {
-        const SiriWaveClass = SiriWaveModule.default;
-        const wave = new SiriWaveClass({
-          container: canvasRef.current,
-          style: "ios9",
-          amplitude: isActive ? 2.5 : 0.3,
-          speed: 0.2,
-          autostart: true,
-          cover: true,
-          width: width,
-          height: 100,
-          color: "#FFFFFF",
-          frequency: 6,
-          ratio: 1,
-        });
-        setSiriwave(wave);
-
-        return () => {
-          if (wave) {
-            wave.dispose();
-          }
-        };
+    if (!isActive) {
+      // Reset all bars to minimum height when inactive
+      animValues.forEach((value) => {
+        Animated.timing(value, {
+          toValue: 0.1,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
       });
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    if (siriwave) {
-      siriwave.setAmplitude(isActive ? 2.5 : 0.3);
-      siriwave.setSpeed(isActive ? 0.25 : 0.15);
-    }
-  }, [isActive, siriwave]);
+    const animations = animValues.map((value, index) => {
+      const randomDelay = Math.random() * 300;
+      const randomDuration = 400 + Math.random() * 300; // Medium speed
+      const targetValue = 0.2 + Math.random() * 0.8; // Random height between 0.2 and 1
 
-  if (Platform.OS !== "web") {
-    // Animated fallback wave visualization for native
-    const AnimatedFallback = () => {
-      const pulse1 = useRef(new Animated.Value(0.6)).current;
-      const pulse2 = useRef(new Animated.Value(0.4)).current;
-      const pulse3 = useRef(new Animated.Value(0.2)).current;
-
-      useEffect(() => {
-        const createPulseAnimation = (
-          animValue: Animated.Value,
-          delay: number
-        ) => {
-          return Animated.loop(
-            Animated.sequence([
-              Animated.timing(animValue, {
-                toValue: 1,
-                duration: isActive ? 800 : 1500,
-                delay,
-                useNativeDriver: true,
-              }),
-              Animated.timing(animValue, {
-                toValue: isActive ? 0.6 : 0.2,
-                duration: isActive ? 800 : 1500,
-                useNativeDriver: true,
-              }),
-            ])
-          );
-        };
-
-        const animation1 = createPulseAnimation(pulse1, 0);
-        const animation2 = createPulseAnimation(pulse2, 200);
-        const animation3 = createPulseAnimation(pulse3, 400);
-
-        animation1.start();
-        animation2.start();
-        animation3.start();
-
-        return () => {
-          animation1.stop();
-          animation2.stop();
-          animation3.stop();
-        };
-      }, [isActive]);
-
-      return (
-        <View style={styles.fallbackWave}>
-          <View style={styles.nativeWaveContainer}>
-            <Animated.View
-              style={[
-                styles.nativeWave,
-                { opacity: pulse1, transform: [{ scaleX: pulse1 }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.nativeWave,
-                { opacity: pulse2, transform: [{ scaleX: pulse2 }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.nativeWave,
-                { opacity: pulse3, transform: [{ scaleX: pulse3 }] },
-              ]}
-            />
-          </View>
-        </View>
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(randomDelay),
+          Animated.timing(value, {
+            toValue: targetValue,
+            duration: randomDuration,
+            useNativeDriver: false,
+          }),
+          Animated.timing(value, {
+            toValue: 0.1,
+            duration: randomDuration,
+            useNativeDriver: false,
+          }),
+        ])
       );
+    });
+
+    animations.forEach((anim) => anim.start());
+
+    return () => {
+      animations.forEach((anim) => anim.stop());
     };
+  }, [isActive, animValues]);
 
-    return <AnimatedFallback />;
-  }
+  // Base heights for each bar to create a natural waveform pattern
+  const baseHeights = Array.from({ length: barCount }, (_, i) => {
+    // Create a varied waveform pattern with multiple frequencies
+    const x = i / barCount;
+    const height1 = Math.sin(x * Math.PI * 12) * 0.5;
+    const height2 = Math.sin(x * Math.PI * 24) * 0.3;
+    const height3 = Math.sin(x * Math.PI * 6) * 0.2;
+    return Math.abs(height1 + height2 + height3) * 40 + 8;
+  });
 
-  return <div ref={canvasRef} style={{ width: width, height: 100 }} />;
+  return (
+    <View
+      style={{
+        height: 70,
+        width: width,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: width,
+          height: 70,
+        }}
+      >
+        {animValues.map((animValue, index) => {
+          const baseHeight = baseHeights[index];
+          const barHeight = animValue.interpolate({
+            inputRange: [0, 1],
+            outputRange: [baseHeight * 0.3, baseHeight * 2.2],
+            extrapolate: "clamp",
+          });
+
+          return (
+            <Animated.View
+              key={index}
+              style={{
+                width: width / barCount - 1.5,
+                height: barHeight,
+                backgroundColor: "#FFFFFF",
+                marginHorizontal: 0.5,
+                borderRadius: 1,
+              }}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
 };
 
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
@@ -162,128 +140,78 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   // Min 260px, max 300px for most phones
   const interfaceHeight = Math.min(Math.max(height * 0.35, 260), 300);
 
-  // Calculate glow position with wide ellipse that covers the full width
-  const glowRadiusX = width * 1.1; // Horizontal radius - very wide
-  const glowRadiusY = width * 0.35; // Vertical radius - much shorter for stretched effect
-  const targetIntersectionFromBottom = interfaceHeight / 5; // 1/5 from bottom
-  // Position ellipse so it intersects at the target height from bottom
-  const glowBottom = -(glowRadiusY - targetIntersectionFromBottom);
-
-  // Container dimensions for the ellipse
-  const svgWidth = glowRadiusX * 2;
-  const svgHeight = glowRadiusY * 2;
-
   return (
     <View
-      style={[
-        styles.container,
-        { height: interfaceHeight, paddingBottom: insets.bottom },
-      ]}
+      className="absolute bottom-0 left-0 right-0"
+      style={{
+        height: interfaceHeight,
+        paddingBottom: insets.bottom,
+        zIndex: 99999,
+        elevation: 99999,
+        backgroundColor: "#2E273F",
+        borderTopLeftRadius: 50,
+        borderTopRightRadius: 50,
+        overflow: "hidden",
+      }}
     >
-      {/* Gradient Overlay - bottom to top */}
-      <LinearGradient
-        colors={["#23202A", "#272236"]}
-        start={{ x: 0, y: 1 }}
-        end={{ x: 0, y: 0 }}
-        style={styles.gradient}
+      {/* Background Image positioned at bottom halfway */}
+      <Image
+        source={require("../../assets/images/image.png")}
+        style={{
+          position: "absolute",
+          top: -200,
+          left: width / 2 - 353.5,
+          width: 707,
+          height: 707,
+          opacity: 0.5,
+        }}
+        resizeMode="cover"
+      />
+
+      {/* Background and Content */}
+      <View
+        style={{
+          flex: 1,
+          paddingTop: 12,
+          paddingHorizontal: 24,
+          paddingBottom: 12,
+        }}
       >
-        {/* Purple Glow Effect - SVG with smooth radial gradient */}
-        <View
-          style={[
-            styles.glowContainer,
-            {
-              bottom: glowBottom,
-              width: svgWidth,
-              height: svgHeight,
-              marginLeft: -glowRadiusX,
-            },
-          ]}
-        >
-          <Svg height={svgHeight} width={svgWidth} style={styles.glowSvg}>
-            <Defs>
-              <SvgRadialGradient id="purpleGlow" cx="50%" cy="50%">
-                <Stop
-                  offset="0%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.5"
-                />
-                <Stop
-                  offset="15%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.4"
-                />
-                <Stop
-                  offset="30%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.3"
-                />
-                <Stop
-                  offset="45%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.2"
-                />
-                <Stop
-                  offset="60%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.12"
-                />
-                <Stop
-                  offset="75%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.06"
-                />
-                <Stop
-                  offset="90%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0.02"
-                />
-                <Stop
-                  offset="100%"
-                  stopColor="rgb(204, 145, 255)"
-                  stopOpacity="0"
-                />
-              </SvgRadialGradient>
-            </Defs>
-            <Ellipse
-              cx={glowRadiusX}
-              cy={glowRadiusY}
-              rx={glowRadiusX}
-              ry={glowRadiusY}
-              fill="url(#purpleGlow)"
-            />
-          </Svg>
-        </View>
-
-        <View style={styles.contentContainer}>
+        <View style={{ flex: 1, justifyContent: "flex-start" }}>
           {/* Top Handle */}
-          <View style={styles.handleSmall} />
+          <View className="w-9 h-1 bg-white/40 rounded-full self-center mb-8" />
 
-          {/* SiriWave Visualization */}
-          <View style={styles.waveContainer}>
-            <SiriWave isActive={isActive && !isPaused} />
+          {/* Sound Wave Visualization */}
+          <View className="h-[100] w-full justify-center items-center mb-8">
+            <SoundWave isActive={isActive && !isPaused} />
           </View>
 
           {/* Control Buttons */}
-          <View style={styles.controlsContainer}>
+          <View className="flex-row justify-around items-start px-3 mb-4">
             {/* Speaker Button */}
-            <View style={styles.buttonContainer}>
+            <View className="items-center">
               <TouchableOpacity
-                style={styles.controlButton}
+                className="w-14 h-14 rounded-full bg-white/20 justify-center items-center mb-1.5"
                 onPress={onSpeakerPress}
                 activeOpacity={0.7}
               >
                 <Ionicons name="volume-high" size={24} color="#FFFFFF" />
               </TouchableOpacity>
-              <Text style={styles.controlLabel}>Speaker</Text>
+              <Text
+                className="text-[11px] text-center"
+                style={{
+                  fontFamily: "MontserratAlternates_500Medium",
+                  color: "#FFFFFF",
+                }}
+              >
+                Speaker
+              </Text>
             </View>
 
             {/* Mute Button */}
-            <View style={styles.buttonContainer}>
+            <View className="items-center">
               <TouchableOpacity
-                style={[
-                  styles.controlButton,
-                  isMuted && styles.controlButtonActive,
-                ]}
+                className={`w-14 h-14 rounded-full justify-center items-center mb-1.5 ${isMuted ? "bg-white/30" : "bg-white/20"}`}
                 onPress={onMutePress}
                 activeOpacity={0.7}
               >
@@ -293,16 +221,21 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
                   color="#FFFFFF"
                 />
               </TouchableOpacity>
-              <Text style={styles.controlLabel}>Mute</Text>
+              <Text
+                className="text-[11px] text-center"
+                style={{
+                  fontFamily: "MontserratAlternates_500Medium",
+                  color: "#FFFFFF",
+                }}
+              >
+                Mute
+              </Text>
             </View>
 
             {/* Pause Button */}
-            <View style={styles.buttonContainer}>
+            <View className="items-center">
               <TouchableOpacity
-                style={[
-                  styles.controlButton,
-                  isPaused && styles.controlButtonActive,
-                ]}
+                className={`w-14 h-14 rounded-full justify-center items-center mb-1.5 ${isPaused ? "bg-white/30" : "bg-white/20"}`}
                 onPress={onPausePress}
                 activeOpacity={0.7}
               >
@@ -312,165 +245,41 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
                   color="#FFFFFF"
                 />
               </TouchableOpacity>
-              <Text style={styles.controlLabel}>Pause</Text>
+              <Text
+                className="text-[11px] text-center"
+                style={{
+                  fontFamily: "MontserratAlternates_500Medium",
+                  color: "#FFFFFF",
+                }}
+              >
+                Pause
+              </Text>
             </View>
 
             {/* End Button */}
-            <View style={styles.buttonContainer}>
+            <View className="items-center">
               <TouchableOpacity
-                style={styles.endButton}
+                className="w-14 h-14 rounded-full bg-[#EB5545] justify-center items-center mb-1.5"
                 onPress={onEndPress}
                 activeOpacity={0.7}
               >
-                <Text style={styles.endIcon}>×</Text>
+                <Text className="text-[28px] text-white text-center font-light">
+                  ×
+                </Text>
               </TouchableOpacity>
-              <Text style={styles.controlLabel}>End</Text>
+              <Text
+                className="text-[11px] text-center"
+                style={{
+                  fontFamily: "MontserratAlternates_500Medium",
+                  color: "#FFFFFF",
+                }}
+              >
+                End
+              </Text>
             </View>
           </View>
-
-          {/* Spacer to push bottom indicator down */}
-          <View style={{ flex: 1 }} />
-
-          {/* Bottom Indicator */}
-          <View style={styles.bottomIndicator} />
         </View>
-      </LinearGradient>
+      </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#272236",
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    overflow: "hidden",
-  },
-  glowContainer: {
-    position: "absolute",
-    left: "50%",
-    zIndex: 1,
-  },
-  glowSvg: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-  },
-  gradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    zIndex: 4,
-  },
-  contentContainer: {
-    flex: 1,
-    zIndex: 5,
-    justifyContent: "flex-start",
-  },
-  handleSmall: {
-    width: 36,
-    height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
-    borderRadius: 999,
-    alignSelf: "center",
-    marginBottom: 16,
-  },
-  waveContainer: {
-    height: 100,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    marginHorizontal: -20,
-  },
-  fallbackWave: {
-    height: 100,
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  nativeWaveContainer: {
-    width: "100%",
-    height: 100,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  nativeWave: {
-    position: "absolute",
-    width: "100%",
-    height: 4,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 2,
-  },
-  waveText: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  waveSubtext: {
-    fontSize: 11,
-    color: "#FFFFFF80",
-    fontFamily: "MontserratAlternates_500Medium",
-    marginTop: 4,
-  },
-  controlsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-start",
-    paddingHorizontal: 12,
-    marginBottom: 16,
-  },
-  buttonContainer: {
-    alignItems: "center",
-  },
-  controlButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.20)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  controlButtonActive: {
-    backgroundColor: "rgba(255, 255, 255, 0.30)",
-  },
-  endButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#EB5545",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  endIcon: {
-    fontSize: 28,
-    color: "#FFFFFF",
-    fontWeight: "300",
-    textAlign: "center",
-  },
-  controlLabel: {
-    fontSize: 11,
-    fontFamily: "MontserratAlternates_500Medium",
-    color: "#FFFFFF",
-    textAlign: "center",
-  },
-  bottomIndicator: {
-    width: 120,
-    height: 4,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 999,
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-});

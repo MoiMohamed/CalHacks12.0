@@ -255,7 +255,7 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    width: 324,
+    width: "100%",
     borderRadius: 11.5,
     paddingHorizontal: 16,
     paddingTop: 12,

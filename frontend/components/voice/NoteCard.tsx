@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
 
 interface NoteCardProps {
   title: string;
@@ -9,7 +9,7 @@ interface NoteCardProps {
 
 // Predefined color palettes for note cards
 const NOTE_COLORS = {
-  background: ['#A85951', '#8B6F47', '#7B5E7B', '#6B7C8B'],
+  background: ["#A85951", "#8B6F47", "#7B5E7B", "#6B7C8B"],
 };
 
 export const NoteCard: React.FC<NoteCardProps> = ({
@@ -17,7 +17,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   body,
   colorIndex = 0,
 }) => {
-  const backgroundColor = NOTE_COLORS.background[colorIndex % NOTE_COLORS.background.length];
+  const backgroundColor =
+    NOTE_COLORS.background[colorIndex % NOTE_COLORS.background.length];
 
   return (
     <View style={[styles.card, { backgroundColor }]}>
@@ -42,28 +43,28 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontFamily: 'Montserrat_600SemiBold',
-    color: '#FFFFFF',
+    fontFamily: "Montserrat_600SemiBold",
+    color: "#FFFFFF",
     marginBottom: 12,
   },
   bodyContainer: {
     gap: 6,
   },
   bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   bullet: {
     fontSize: 14,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#FFFFFFB3',
+    fontFamily: "Montserrat_400Regular",
+    color: "#FFFFFFB3",
     marginRight: 8,
     lineHeight: 20,
   },
   bodyText: {
     fontSize: 13,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#FFFFFFB3',
+    fontFamily: "Montserrat_400Regular",
+    color: "#FFFFFFB3",
     flex: 1,
     lineHeight: 20,
   },
