@@ -7,9 +7,26 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  useFonts,
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+  Montserrat_600SemiBold,
+  Montserrat_700Bold,
+} from "@expo-google-fonts/montserrat";
+import {
+  MontserratAlternates_500Medium,
+  MontserratAlternates_600SemiBold,
+  MontserratAlternates_700Bold,
+} from "@expo-google-fonts/montserrat-alternates";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
 
 import "../global.css";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+
+// Keep the splash screen visible while we fetch fonts
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -37,6 +54,44 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  const [fontsLoaded] = useFonts({
+    Montserrat_400Regular,
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+    Montserrat_700Bold,
+    MontserratAlternates_500Medium,
+    MontserratAlternates_600SemiBold,
+    MontserratAlternates_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+
+    // Suppress React Native Web's collapsable attribute warning
+    const originalError = console.error;
+    console.error = (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].includes(
+          "Received `false` for a non-boolean attribute `collapsable`"
+        )
+      ) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+
+    return () => {
+      console.error = originalError;
+    };
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
