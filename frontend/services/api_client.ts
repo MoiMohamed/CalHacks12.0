@@ -3,18 +3,15 @@ import type { AxiosRequestConfig, AxiosResponse, Method } from "axios";
 import Constants from "expo-constants";
 
 // API Configuration
-// Use environment variable or fallback to local development
+// Use environment variable or fallback to cloudflare tunnel
 const getApiUrl = () => {
   // Check for environment variable first
   if (process.env.EXPO_PUBLIC_API_BASE_URL) {
     return process.env.EXPO_PUBLIC_API_BASE_URL;
   }
 
-  // Check if we're running on a mobile device (not web)
-  if (Constants.platform?.ios || Constants.platform?.android) {
-    return "http://10.112.17.36:8000"; // Your laptop's IP
-  }
-  return "http://localhost:8000"; // For web development
+  // Default to your cloudflare tunnel
+  return "https://overview-pas-product-noticed.trycloudflare.com";
 };
 
 export const apiURL = (
@@ -28,7 +25,7 @@ const axiosInstance = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true,
+  withCredentials: false,
 });
 
 // Enhanced request config interface
@@ -38,11 +35,7 @@ interface AxiosRequestConfigPatch extends Omit<AxiosRequestConfig, "method"> {
 
 // Custom API Error class
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public data?: any
-  ) {
+  constructor(message: string, public status: number, public data?: any) {
     super(message);
     this.name = "ApiError";
   }

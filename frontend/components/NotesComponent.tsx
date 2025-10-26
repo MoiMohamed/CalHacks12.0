@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import Svg, {
   Circle,
@@ -18,6 +19,9 @@ import Svg, {
   Filter,
   G,
 } from "react-native-svg";
+import { useComprehensiveContext } from "@/hooks/useComprehensiveContext";
+import { useUpdateMission, useDeleteMission } from "@/hooks/useMissions";
+import type { Mission } from "@/types/api";
 
 interface Note {
   id: string;
@@ -28,67 +32,86 @@ interface Note {
   category: string;
 }
 
-const NOTES_DATA: Note[] = [
-  {
-    id: "1",
-    title: "How to make your personal brand stand out online",
-    body: "Focus on authentic content, engage consistently with your audience, and showcase your unique value proposition. Use storytelling to connect emotionally.",
-    date: "May 21, 2025",
-    backgroundColor: "#fde9ff",
-    category: "Personal",
-  },
-  {
-    id: "2",
-    title: "Summary of that article on AI and memory",
-    body: "The article discusses how AI systems are being developed to mimic human memory processes, including short-term and long-term retention. Key findings include the role of attention mechanisms in memory formation.",
-    date: "May 11, 2025",
-    backgroundColor: "#fbffe7",
-    category: "School",
-  },
-  {
-    id: "3",
-    title:
-      "Detailed notes from the 10/25 project planning meeting, including all action items and who is responsible for what.",
-    body: "Action items: Sarah - complete design mockups by 11/1, John - finalize API integration by 11/5, Team - review security requirements. Next meeting scheduled for 11/8.",
-    date: "July 25, 2025",
-    backgroundColor: "#ebffe4",
-    category: "Work",
-  },
-  {
-    id: "4",
-    title:
-      "Brainstorming session for the Q4 marketing campaign, covering social media angles, email copy, and potential collaborations.",
-    body: "Ideas: Partner with micro-influencers, create behind-the-scenes content, launch user-generated content campaign. Budget allocation: 40% social, 30% email, 30% partnerships.",
-    date: "February 5, 2025",
-    backgroundColor: "#e5fffc",
-    category: "Work",
-  },
-  {
-    id: "5",
-    title: "Recipe for Mom's lasagna (with a reminder to get ricotta)",
-    body: "Ingredients: lasagna noodles, ricotta cheese, mozzarella, ground beef, marinara sauce, onions, garlic. Bake at 375°F for 45 minutes. Don't forget to buy ricotta!",
-    date: "May 21, 2025",
-    backgroundColor: "#ffe5e5",
-    category: "Personal",
-  },
-  {
-    id: "6",
-    title: "Draft for the email to Professor Smith about my project",
-    body: "Dear Professor Smith, I wanted to update you on my research progress. I've completed the literature review and am moving forward with the experimental phase. Could we schedule a meeting to discuss next steps?",
-    date: "May 21, 2025",
-    backgroundColor: "#e7e5ff",
-    category: "School",
-  },
+const HARDCODED_USER_ID = "ac22a45c-fb5b-4027-9e41-36d6b9abaebb";
+
+// Color palette for notes
+const noteColors = [
+  "#fde9ff",
+  "#fbffe7",
+  "#ebffe4",
+  "#e5fffc",
+  "#ffe5e5",
+  "#e7e5ff",
+  "#ffeee5",
+  "#e5f4ff",
 ];
 
 export default function NotesComponent() {
-  const [selectedCategory, setSelectedCategory] = useState<string>("School");
-  const [notes, setNotes] = useState<Note[]>(NOTES_DATA);
+  const userId = HARDCODED_USER_ID;
+
+  // Fetch comprehensive context
+  const {
+    data: context,
+    isLoading,
+    error,
+    refetch,
+  } = useComprehensiveContext(userId);
+  const { mutateAsync: updateMission } = useUpdateMission();
+  const { mutateAsync: deleteMission } = useDeleteMission();
+
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedBody, setEditedBody] = useState("");
+
+  // Extract note-type missions from context
+  const noteMissions = useMemo(() => {
+    if (!context?.all_missions) return [];
+    return context.all_missions.filter((m: Mission) => m.type === "note");
+  }, [context]);
+
+  // Convert missions to notes format
+  const notes = useMemo(() => {
+    return noteMissions.map((mission: Mission, index: number) => {
+      // Category name from context's categories or default
+      let categoryName = "Personal";
+      if (mission.category_id && context?.categories) {
+        const category = context.categories.find(
+          (c: any) => c.id === mission.category_id
+        );
+        if (category) {
+          categoryName = category.name;
+        }
+      }
+
+      return {
+        id: mission.id,
+        title: mission.title,
+        body: mission.body || "",
+        date: mission.created_at
+          ? new Date(mission.created_at).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "No date",
+        backgroundColor: noteColors[index % noteColors.length],
+        category: categoryName,
+      };
+    });
+  }, [noteMissions, context]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log("=== NotesComponent Debug ===");
+    console.log("User ID:", userId);
+    console.log("Loading:", isLoading);
+    console.log("Error:", error);
+    console.log("Note Missions Count:", noteMissions.length);
+    console.log("Notes:", notes);
+  }, [userId, isLoading, error, noteMissions, notes]);
 
   const categories = [
     { name: "Personal", backgroundColor: "#fceced" },
@@ -115,21 +138,29 @@ export default function NotesComponent() {
     setIsEditing(false);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (selectedNote && editedTitle.trim()) {
-      setNotes((prevNotes) =>
-        prevNotes.map((note) =>
-          note.id === selectedNote.id
-            ? { ...note, title: editedTitle.trim(), body: editedBody.trim() }
-            : note
-        )
-      );
-      setSelectedNote({
-        ...selectedNote,
-        title: editedTitle.trim(),
-        body: editedBody.trim(),
-      });
-      setIsEditing(false);
+      try {
+        await updateMission({
+          id: selectedNote.id,
+          data: {
+            title: editedTitle.trim(),
+            body: editedBody.trim(),
+          },
+        });
+        // Update local state
+        setSelectedNote({
+          ...selectedNote,
+          title: editedTitle.trim(),
+          body: editedBody.trim(),
+        });
+        setIsEditing(false);
+        // Refetch to update the list
+        refetch();
+      } catch (error) {
+        console.error("Failed to update note:", error);
+        Alert.alert("Error", "Failed to update note. Please try again.");
+      }
     }
   };
 
@@ -140,11 +171,16 @@ export default function NotesComponent() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            setNotes((prevNotes) =>
-              prevNotes.filter((note) => note.id !== selectedNote.id)
-            );
-            closeModal();
+          onPress: async () => {
+            try {
+              await deleteMission(selectedNote.id);
+              closeModal();
+              // Refetch to update the list
+              refetch();
+            } catch (error) {
+              console.error("Failed to delete note:", error);
+              Alert.alert("Error", "Failed to delete note. Please try again.");
+            }
           },
         },
       ]);
@@ -274,32 +310,46 @@ export default function NotesComponent() {
         contentContainerStyle={styles.notesContainer}
         showsVerticalScrollIndicator={false}
       >
-        {filteredNotes.map((note, index) => {
-          // Staggered layout: left column for even indices, right for odd
-          const isLeft = index % 2 === 0;
-          const marginTop = index < 2 ? 0 : 10;
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#A78BFA" />
+            <Text style={styles.loadingText}>Loading notes...</Text>
+          </View>
+        ) : filteredNotes.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No notes yet</Text>
+            <Text style={styles.emptySubtext}>
+              Tell Neuri to create a note via voice!
+            </Text>
+          </View>
+        ) : (
+          filteredNotes.map((note, index) => {
+            // Staggered layout: left column for even indices, right for odd
+            const isLeft = index % 2 === 0;
+            const marginTop = index < 2 ? 0 : 10;
 
-          return (
-            <TouchableOpacity
-              key={note.id}
-              onPress={() => openNote(note)}
-              style={[
-                styles.noteCard,
-                {
-                  backgroundColor: note.backgroundColor,
-                  marginTop,
-                  width: index === 2 ? "100%" : "48%",
-                  alignSelf: isLeft ? "flex-start" : "flex-end",
-                },
-              ]}
-            >
-              <Text style={styles.noteTitle} numberOfLines={3}>
-                {note.title}
-              </Text>
-              <Text style={styles.noteDate}>{note.date}</Text>
-            </TouchableOpacity>
-          );
-        })}
+            return (
+              <TouchableOpacity
+                key={note.id}
+                onPress={() => openNote(note)}
+                style={[
+                  styles.noteCard,
+                  {
+                    backgroundColor: note.backgroundColor,
+                    marginTop,
+                    width: index === 2 ? "100%" : "48%",
+                    alignSelf: isLeft ? "flex-start" : "flex-end",
+                  },
+                ]}
+              >
+                <Text style={styles.noteTitle} numberOfLines={3}>
+                  {note.title}
+                </Text>
+                <Text style={styles.noteDate}>{note.date}</Text>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
       {/* Note Detail/Edit Modal */}
@@ -622,5 +672,39 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minHeight: 150,
     textAlignVertical: "top",
+  },
+  // Loading and empty states
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontFamily: "MontserratAlternates_400Regular",
+    fontSize: 14,
+    color: "#C7C7C7",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontFamily: "MontserratAlternates_600SemiBold",
+    fontSize: 18,
+    color: "#FFFFFF",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtext: {
+    fontFamily: "MontserratAlternates_400Regular",
+    fontSize: 14,
+    color: "#C7C7C7",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
