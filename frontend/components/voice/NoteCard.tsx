@@ -37,35 +37,35 @@ export const NoteCard: React.FC<NoteCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 11.5,
+    padding: 12,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 16,
+    fontSize: 13,
     fontFamily: "Montserrat_600SemiBold",
     color: "#FFFFFF",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   bodyContainer: {
-    gap: 6,
+    gap: 4,
   },
   bulletRow: {
     flexDirection: "row",
     alignItems: "flex-start",
   },
   bullet: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: "Montserrat_400Regular",
     color: "#FFFFFFB3",
-    marginRight: 8,
-    lineHeight: 20,
+    marginRight: 6,
+    lineHeight: 18,
   },
   bodyText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Montserrat_400Regular",
     color: "#FFFFFFB3",
     flex: 1,
-    lineHeight: 20,
+    lineHeight: 18,
   },
 });

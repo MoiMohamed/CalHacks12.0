@@ -18,7 +18,9 @@ interface TaskCardProps {
   subtasks?: SubTask[];
   colorIndex?: number;
   enabled?: boolean;
+  completed?: boolean;
   onToggle?: (enabled: boolean) => void;
+  onComplete?: () => void;
   status?: "pending" | "confirmed";
   onAccept?: () => void;
   onReject?: () => void;
@@ -35,13 +37,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   subtasks = [],
   colorIndex = 0,
   enabled = true,
+  completed = false,
   onToggle,
+  onComplete,
   status = "confirmed",
   onAccept,
   onReject,
 }) => {
   const [isEnabled, setIsEnabled] = useState(enabled);
+  const [isCompleted, setIsCompleted] = useState(completed);
   const togglePosition = useSharedValue(enabled ? 1 : 0);
+  const checkScale = useSharedValue(completed ? 1 : 0);
 
   const backgroundColor =
     TASK_COLORS.background[colorIndex % TASK_COLORS.background.length];
@@ -72,12 +78,45 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     };
   });
 
+  const animatedCheckStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: checkScale.value }],
+      opacity: checkScale.value,
+    };
+  });
+
+  const handleComplete = () => {
+    if (isCompleted) return; // Already completed
+
+    setIsCompleted(true);
+    checkScale.value = withSpring(1, {
+      damping: 10,
+      stiffness: 200,
+    });
+    onComplete?.();
+  };
+
   return (
-    <View style={[styles.card, { backgroundColor }]}>
+    <View
+      style={[styles.card, { backgroundColor, opacity: isCompleted ? 0.6 : 1 }]}
+    >
       <View style={styles.content}>
+        <Pressable onPress={handleComplete} style={styles.checkButton}>
+          <View style={styles.checkCircle}>
+            <Animated.View style={[styles.checkmark, animatedCheckStyle]}>
+              <Text style={styles.checkmarkText}>✓</Text>
+            </Animated.View>
+          </View>
+        </Pressable>
         <View style={styles.textContainer}>
-          <Text style={styles.title}>{title}</Text>
-          {date && <Text style={styles.date}>{date}</Text>}
+          <Text style={[styles.title, isCompleted && styles.completedText]}>
+            {title}
+          </Text>
+          {date && (
+            <Text style={[styles.date, isCompleted && styles.completedText]}>
+              {date}
+            </Text>
+          )}
         </View>
         <Pressable onPress={handleToggle} style={styles.toggleContainer}>
           <Animated.View style={[styles.toggle, animatedToggleStyle]}>
@@ -130,34 +169,61 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     borderRadius: 11.5,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 0.288,
     borderColor: "#FFFFFF",
   },
   content: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  checkButton: {
+    marginRight: 10,
+    padding: 2,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  checkmark: {
+    position: "absolute",
+  },
+  checkmarkText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "bold",
   },
   textContainer: {
     flex: 1,
+    paddingRight: 12,
   },
   title: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "MontserratAlternates_500Medium",
     color: "#EDEBFF",
-    lineHeight: 19,
+    lineHeight: 18,
     letterSpacing: 0.432,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   date: {
     fontSize: 12,
     fontFamily: "Montserrat_400Regular",
     color: "rgba(255, 255, 255, 0.7)",
   },
+  completedText: {
+    textDecorationLine: "line-through",
+    opacity: 0.7,
+  },
   toggleContainer: {
-    marginLeft: 12,
+    alignSelf: "flex-start",
   },
   toggle: {
     width: 34.54,

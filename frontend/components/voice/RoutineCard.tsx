@@ -10,6 +10,7 @@ interface RoutineCardProps {
   emoji?: string;
   title: string;
   frequency?: string;
+  time?: string;
   colorIndex?: number;
   enabled?: boolean;
   onToggleRoutine?: (enabled: boolean) => void;
@@ -24,6 +25,7 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
   emoji,
   title,
   frequency,
+  time,
   colorIndex = 0,
   enabled = true,
   onToggleRoutine,
@@ -62,7 +64,7 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor }]}>
-      <View style={styles.header}>
+      <View style={styles.content}>
         {emoji && (
           <View style={styles.emojiCircle}>
             <Text style={styles.emoji}>{emoji}</Text>
@@ -70,6 +72,7 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
         )}
         <View style={styles.textContainer}>
           <Text style={styles.title}>{title}</Text>
+          {time && <Text style={styles.time}>{time}</Text>}
           {frequency && <Text style={styles.frequency}>{frequency}</Text>}
         </View>
         <Pressable onPress={handleToggleRoutine} style={styles.toggleContainer}>
@@ -86,15 +89,15 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     borderRadius: 11.5,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 0.288,
     borderColor: "#FFFFFF",
   },
-  header: {
+  content: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    alignItems: "center",
   },
   emojiCircle: {
     width: 21.88,
@@ -113,22 +116,29 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
+    paddingRight: 12,
   },
   title: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "MontserratAlternates_500Medium",
     color: "#EDEBFF",
-    lineHeight: 19,
+    lineHeight: 18,
     letterSpacing: 0.432,
+    marginBottom: 2,
+  },
+  time: {
+    fontSize: 12,
+    fontFamily: "Montserrat_600SemiBold",
+    color: "#FFFFFF",
+    marginBottom: 2,
   },
   frequency: {
     fontSize: 11,
     fontFamily: "Montserrat_400Regular",
     color: "rgba(237, 235, 255, 0.7)",
-    marginTop: 2,
   },
   toggleContainer: {
-    marginLeft: 12,
+    alignSelf: "flex-start",
   },
   toggle: {
     width: 34.54,
