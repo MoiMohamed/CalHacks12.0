@@ -179,10 +179,10 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       >
         <View style={{ flex: 1, justifyContent: "flex-start" }}>
           {/* Top Handle */}
-          <View className="w-9 h-1 bg-white/40 rounded-full self-center mb-8" />
+          <View className="w-9 h-1 bg-white/40 rounded-full self-center mb-6" />
 
           {/* Sound Wave Visualization */}
-          <View className="h-[100] w-full justify-center items-center mb-8">
+          <View className="h-[100] w-full justify-center items-center mb-4">
             <SoundWave isActive={isActive && !isPaused} />
           </View>
 

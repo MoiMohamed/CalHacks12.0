@@ -14,6 +14,8 @@ import { NoteCard } from "@/components/voice/NoteCard";
 import { TaskCard } from "@/components/voice/TaskCard";
 import { ReminderCard } from "@/components/voice/ReminderCard";
 import { VoiceInterface } from "@/components/voice/VoiceInterface";
+import { VAPI_CREDENTIALS } from "@/config/vapi-credentials";
+import Vapi from "@vapi-ai/web";
 
 const { height } = Dimensions.get("window");
 
@@ -21,6 +23,128 @@ export default function VoiceScreen() {
   const router = useRouter();
   const [isMuted, setIsMuted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+
+  const vapiRef = React.useRef<any>(null);
+
+  // Initialize VAPI (Web SDK) using the simple docs approach
+  React.useEffect(() => {
+    if (vapiRef.current) return;
+
+    const vapi = new Vapi(VAPI_CREDENTIALS.PUBLIC_KEY);
+    vapiRef.current = vapi;
+
+    const handleCallStart = () => setIsConnected(true);
+    const handleCallEnd = () => {
+      setIsConnected(false);
+      setIsPaused(false);
+      setIsMuted(false);
+    };
+    const userSpeakingTimeoutRef: { current: any } = { current: null };
+    const handleMessage = (message: any) => {
+      if (message?.type === "transcript") {
+        console.log(`${message.role}: ${message.transcript}`);
+        if (message.role === "user") {
+          setIsUserSpeaking(true);
+          if (userSpeakingTimeoutRef.current)
+            clearTimeout(userSpeakingTimeoutRef.current);
+          userSpeakingTimeoutRef.current = setTimeout(() => {
+            setIsUserSpeaking(false);
+          }, 1200);
+        }
+      }
+    };
+    const handleError = (error: any) => {
+      console.error("VAPI error:", error);
+    };
+    const handleSpeechStart = () => setIsAssistantSpeaking(true);
+    const handleSpeechEnd = () => setIsAssistantSpeaking(false);
+
+    vapi.on("call-start", handleCallStart);
+    vapi.on("call-end", handleCallEnd);
+    vapi.on("message", handleMessage);
+    vapi.on("error", handleError);
+    vapi.on("speech-start", handleSpeechStart);
+    vapi.on("speech-end", handleSpeechEnd);
+
+    // Auto-start on web, with a user-interaction fallback if autoplay is blocked
+    const assistantId = getAssistantId();
+    if (assistantId) {
+      const tryStart = () => vapi.start(assistantId);
+      tryStart().catch((err: any) => {
+        console.warn("Auto-start blocked, waiting for user interaction", err);
+        const resume = () => {
+          tryStart().catch((e: any) =>
+            console.error("Start after interaction failed", e)
+          );
+          window.removeEventListener("click", resume);
+          window.removeEventListener("touchstart", resume);
+        };
+        window.addEventListener("click", resume, { once: true } as any);
+        window.addEventListener("touchstart", resume, { once: true } as any);
+      });
+    } else {
+      console.warn("No VAPI assistant ID configured for auto-start");
+    }
+
+    return () => {
+      try {
+        vapi.off("call-start", handleCallStart);
+        vapi.off("call-end", handleCallEnd);
+        vapi.off("message", handleMessage);
+        vapi.off("error", handleError);
+        vapi.off("speech-start", handleSpeechStart);
+        vapi.off("speech-end", handleSpeechEnd);
+        vapi.stop?.();
+      } catch {}
+      vapiRef.current = null;
+    };
+  }, []);
+
+  const getAssistantId = () =>
+    VAPI_CREDENTIALS.MAIN_ASSISTANT_ID || VAPI_CREDENTIALS.ASSISTANT_ID;
+
+  const handleStartCall = async () => {
+    if (!vapiRef.current) return;
+    const assistantId = getAssistantId();
+    if (!assistantId) {
+      console.warn("No VAPI assistant ID configured");
+      return;
+    }
+    try {
+      await vapiRef.current.start(assistantId);
+    } catch (e) {
+      console.error("Failed to start call", e);
+    }
+  };
+
+  const handleStopCall = () => {
+    try {
+      vapiRef.current?.stop?.();
+    } catch (e) {
+      console.error("Failed to stop call", e);
+    }
+  };
+
+  const handleToggleMute = () => {
+    try {
+      vapiRef.current?.setMuted?.(!isMuted);
+      setIsMuted((m) => !m);
+    } catch (e) {
+      console.error("Failed to toggle mute", e);
+    }
+  };
+
+  const handleTogglePause = () => {
+    try {
+      vapiRef.current?.setPaused?.(!isPaused);
+      setIsPaused((p) => !p);
+    } catch (e) {
+      console.error("Failed to toggle pause", e);
+    }
+  };
 
   // Calculate spacer height to match VoiceInterface height
   const interfaceHeight = Math.min(Math.max(height * 0.35, 260), 300);
@@ -205,13 +329,20 @@ export default function VoiceScreen() {
 
         {/* Voice Interface - Fixed at bottom */}
         <VoiceInterface
-          isActive={!isPaused}
+          isActive={
+            isConnected && !isPaused && (isAssistantSpeaking || isUserSpeaking)
+          }
           isMuted={isMuted}
           isPaused={isPaused}
-          onSpeakerPress={() => console.log("Speaker pressed")}
-          onMutePress={() => setIsMuted(!isMuted)}
-          onPausePress={() => setIsPaused(!isPaused)}
-          onEndPress={() => router.push("/(tabs)")}
+          onSpeakerPress={() => {
+            if (!isConnected) handleStartCall();
+          }}
+          onMutePress={handleToggleMute}
+          onPausePress={handleTogglePause}
+          onEndPress={() => {
+            handleStopCall();
+            router.push("/(tabs)");
+          }}
         />
       </SafeAreaView>
     </>
